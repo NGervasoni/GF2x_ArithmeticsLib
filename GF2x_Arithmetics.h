@@ -15,7 +15,7 @@
 
 #define LIMB uint64_t
 
-#define POWER_OF_TWO 800 //m : maximum degree
+#define POWER_OF_TWO 2600 //m : maximum degree
 
 #define LIMB_BITS (sizeof(LIMB) * 8) // W
 

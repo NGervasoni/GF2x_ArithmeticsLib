@@ -113,7 +113,8 @@ void MP_bitShiftLeft(MPN *a, int bitsToShift) {
 
 void MP_bitShiftRight(MPN *a) {
 
-    LIMB shifted_bit = (1 << (LIMB_BITS - 1));
+    LIMB shifted_bit = 1;
+    shifted_bit = shifted_bit << (LIMB_BITS - 1);
     uint8_t curr_last_bit = 0;
     uint8_t prev_last_bit = 0;
 
@@ -154,20 +155,21 @@ MPN limbShiftLeft(MPN a, int n) {
 // irreducible polynomial of degree POWER_OF_TWO+1
 
 MPN MP_ShiftAndAddMul(MPN m1, MPN m2, MPN irr_poly) {
+
     MPN a, b, c;
 
     a = MP_Addition(m1, init_empty(T));
     b = MP_Addition(m2, init_empty(T));
 
-    unsigned limb_bits = LIMB_BITS, s = S;
-    unsigned shiftToHigherOne = (limb_bits - s);
+
+    unsigned shiftToHigherOne = (LIMB_BITS - S);
 
     // trovo valore da controllare poi su b
     // (sarebbe la posizione che sfora di uno il grado e a cui addiziono il polinomio irr
 
     for (int i = (int) (irr_poly.limbNumber - 1); i >= 0; --i) {
 
-        for (unsigned j = 0; j < limb_bits; ++j) {
+        for (unsigned j = 0; j < LIMB_BITS; ++j) {
 
 // initial setting of c
             if (i == (int) (irr_poly.limbNumber - 1) && j == 0) {
@@ -600,7 +602,6 @@ MPN MP_Inversion_EE(MPN a, MPN irr_poly) {
 
 MPN MP_Inversion_Binary(MPN a, MPN irr_poly) {
 
-    MPN swap, shifted_v, shifted_g2;
     MPN u = copy(a);
     MPN v = copy(irr_poly);
 
@@ -746,6 +747,7 @@ MPN MP_Division_Bin_Inv(MPN a, MPN b, MPN irr_poly) {
 void MP_exactDivOnePlusX(MPN poly) {
     LIMB t = 0;
     long i;
+//    poly = removeLeadingZeroLimbs(poly);
     for (i = poly.limbNumber - 1; i >= 0; i--) {
         t ^= poly.num[i];
 
@@ -1119,9 +1121,6 @@ MPN MP_Toom4(MPN a, MPN b) {
     MP_bitShiftLeft(&temp, 3); //per x^3
     w6 = MP_Addition(w6, temp);
 
-    LIMB x4x2x0_limb[] = {0x15};
-    MPN x4x2x0 = init(x4x2x0_limb, 1);
-
     w1 = MP_Addition(w1, w0);
 
     temp = copy(u0);
@@ -1300,7 +1299,7 @@ void print(char *str, MPN poly) {
     printf("%s ", str);
 
     for (int i = 0; i < poly.limbNumber; ++i) {
-        printf("%02lx ", poly.num[i]);
+        printf("0x%02lx, ", poly.num[i]);
     }
 
     printf("\tDegree: %u", degree(poly));
