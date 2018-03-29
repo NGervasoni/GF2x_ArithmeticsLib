@@ -156,6 +156,11 @@ MPN limbShiftLeft(MPN a, int n) {
 
 MPN MP_ShiftAndAddMul(MPN m1, MPN m2, MPN irr_poly) {
 
+    if (irr_poly.limbNumber > T + 1) {
+        fprintf(stderr, "Irr poly is too big! Aborting...\n");
+        exit(EXIT_FAILURE);
+    }
+
     MPN a, b, c;
 
     a = MP_Addition(m1, init_empty(T));
@@ -932,7 +937,9 @@ MPN MP_Toom3(MPN a, MPN b) {
     w2 = MP_Addition(w2, w0);
 
     MP_bitShiftRight(&w2);
-    w2 = MP_Addition(MP_Addition(w2, w3), MP_Toom3(xterzapiuuno, w4));
+//    w2 = MP_Addition(MP_Addition(w2, w3), MP_Toom3(xterzapiuuno, w4));
+    w2 = MP_Addition(MP_Addition(w2, w3), MP_CombRtoLMul(xterzapiuuno, w4));
+
     MP_exactDivOnePlusX(w2);
 
     w1 = MP_Addition(w1, w0);
