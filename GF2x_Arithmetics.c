@@ -19,6 +19,21 @@ void create_precomputed() {
     init_precomputed = 1;
 } // end create_precomputed
 /*---------------------------------------------------------------------------*/
+//Checks if the polynomial belongs to the defined ring
+bool properSize(MPN poly) {
+    if (poly.limbNumber < T)
+        return true;
+    if (poly.limbNumber > T)
+        return false;
+    //poly.limbNumber is T
+    for (int i = LIMB_BITS - 1; i >= LIMB_BITS - S; i--) {
+        if (poly.num[0] >> i == 1)
+            return false;
+    }
+    return true;
+}
+
+/*---------------------------------------------------------------------------*/
 
 MPN init_empty(unsigned size) {
     MPN res;
@@ -26,6 +41,16 @@ MPN init_empty(unsigned size) {
     res.limbNumber = size;
     return res;
 } // end init_empty
+
+/*---------------------------------------------------------------------------*/
+
+MPN init_null() {
+    MPN res;
+    res.num = NULL;
+    res.limbNumber = 0;
+    return res;
+}
+// end init_empty
 
 /*---------------------------------------------------------------------------*/
 
@@ -43,8 +68,14 @@ void MP_free(MPN poly) {
 
 /*---------------------------------------------------------------------------*/
 // 2.32
-//a, b are polynomial of degree <= POWER_OF_TWO
-MPN MP_Addition(MPN a, MPN b) {
+//a, b are polynomial of degree <= POWER_OF_TWO, *res points to an INITIALIZED MPN where the c will be stored
+
+void MP_Addition(MPN *result, MPN a, MPN b) {
+
+    if (!properSize(a) || !properSize(b)) {
+        fprintf(stderr, "Wrong polynomial dimension! Aborting...\n");
+        exit(EXIT_FAILURE);
+    }
 
     unsigned maxLength, minLength;
     LIMB *ptrMax, *ptrMin;
@@ -67,8 +98,8 @@ MPN MP_Addition(MPN a, MPN b) {
     for (int i = 0; i < maxLength - minLength; i++) {
         c.num[i] = ptrMax[i];
     }
-    return c;
-
+    MP_free(*result);
+    *result = c;
 
 }// end MP_addition
 
@@ -85,9 +116,13 @@ void MP_bitShiftLeft(MPN *a, int bitsToShift) {
 
 
     if (a->num[0] >> LIMB_BITS - 1) { // checks if first limb bit is 1
+
         MPN c = init_empty(a->limbNumber + 1);
-        a->num = &(MP_Addition(*a, c).num[0]);
-        a->limbNumber = c.limbNumber;
+        MP_Addition(a, *a, c);
+
+//        a->num = &(MP_Addition(*a, c).num[0]);
+
+//        a->limbNumber = c.limbNumber;
         MP_free(c);
     }
 
@@ -137,15 +172,17 @@ void MP_bitShiftRight(MPN *a) {
 
 /*---------------------------------------------------------------------------*/
 
-MPN limbShiftLeft(MPN a, int n) {
+void limbShiftLeft(MPN *a, int n) {
 
-    MPN c = init_empty(a.limbNumber + n);
+    MPN c = init_empty(a->limbNumber + n);
 
-    for (unsigned i = 0; i < a.limbNumber; i++) {
-        c.num[i] = a.num[i];
+    for (unsigned i = 0; i < a->limbNumber; i++) {
+        c.num[i] = a->num[i];
     }
 
-    return c;
+    MP_free(*a);
+    *a = c;
+
 
 } // end limbShiftLeft
 
@@ -154,17 +191,18 @@ MPN limbShiftLeft(MPN a, int n) {
 // assumption: m1, m2 are polynomial of degree <= POWER_OF_TWO, irreducible is an
 // irreducible polynomial of degree POWER_OF_TWO+1
 
-MPN MP_ShiftAndAddMul(MPN m1, MPN m2, MPN irr_poly) {
+void MP_ShiftAndAddMul(MPN *result, MPN m1, MPN m2, MPN irr_poly) {
 
     if (irr_poly.limbNumber > T + 1) {
         fprintf(stderr, "Irr poly is too big! Aborting...\n");
         exit(EXIT_FAILURE);
     }
 
-    MPN a, b, c;
+    MPN a = init_empty(T), b = init_empty(T), c;
 
-    a = MP_Addition(m1, init_empty(T));
-    b = MP_Addition(m2, init_empty(T));
+
+    MP_Addition(&a, m1, a);
+    MP_Addition(&b, m2, b);
 
 
     unsigned shiftToHigherOne = (LIMB_BITS - S);
@@ -188,10 +226,10 @@ MPN MP_ShiftAndAddMul(MPN m1, MPN m2, MPN irr_poly) {
 
                 MP_bitShiftLeft(&b, 1);
                 if (b.num[0] >> shiftToHigherOne) {
-                    b = MP_Addition(b, irr_poly);
+                    MP_Addition(&b, b, irr_poly);
                 }
                 if ((a.num[i] >> j) & 0x1)
-                    c = MP_Addition(c, b);
+                    MP_Addition(&c, c, b);
             }
 
         }
@@ -199,18 +237,19 @@ MPN MP_ShiftAndAddMul(MPN m1, MPN m2, MPN irr_poly) {
 
     MP_free(a);
     MP_free(b);
-    return removeLeadingZeroLimbs(c);
+    MP_free(*result);
+    *result = c;
 
 }// end MP_ShiftAndAddMul
 
 /*---------------------------------------------------------------------------*/
+
 //2.34
 //ASSUMPTION: m1, m2 limbNumb max is T
+void MP_CombRtoLMul(MPN *result, MPN m1, MPN m2) {
 
-MPN MP_CombRtoLMul(MPN m1, MPN m2) {
-
-    MPN b, c;
-    b = MP_Addition(m2, init_empty(m2.limbNumber + 1));
+    MPN b = init_null(), c;
+    MP_Addition(&b, m2, init_empty(m2.limbNumber + 1));
     c = init_empty(2 * T);
 
     // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
@@ -218,7 +257,7 @@ MPN MP_CombRtoLMul(MPN m1, MPN m2) {
         // j seleziona a ogni ciclo il limb
         for (int j = m1.limbNumber - 1; j >= 0; --j) {
             // shift di k posizioni (k=0 => seleziono bit più a destra)
-            if (m1.num[j] >> k & 0x1) {
+            if (m1.num[j] >> k & 0x1) { //OKKK!!
 
                 for (int i = 0; i < b.limbNumber; ++i) {
                     c.num[c.limbNumber - 1 - (m1.limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
@@ -230,8 +269,9 @@ MPN MP_CombRtoLMul(MPN m1, MPN m2) {
     }
 
     MP_free(b);
-
-    return removeLeadingZeroLimbs(c);
+    removeLeadingZeroLimbs(&c);
+    MP_free(*result);
+    *result = c;
 
 } // end MP_CombRtoLMul
 
@@ -239,7 +279,7 @@ MPN MP_CombRtoLMul(MPN m1, MPN m2) {
 /*---------------------------------------------------------------------------*/
 //2.35
 //ASSUMPTION: a, b limbNumb max is T
-MPN MP_CombLtoRMul(MPN a, MPN b) {
+void MP_CombLtoRMul(MPN *result, MPN a, MPN b) {
 
     MPN c;
     c = init_empty(2 * T);
@@ -263,8 +303,8 @@ MPN MP_CombLtoRMul(MPN a, MPN b) {
         if (k != 0)
             MP_bitShiftLeft(&c, 1);
     }
-
-    return removeLeadingZeroLimbs(c);
+    MP_free(*result);
+    *result = c;
 
 } // end MP_CombLtoRMul
 
@@ -273,28 +313,31 @@ MPN MP_CombLtoRMul(MPN a, MPN b) {
 
 //ASSUMPTION: a, b limbNumb max is T
 //            w divisore di LIMB_BITS
-MPN MP_CombLtoRMul_w(MPN a, MPN b, unsigned w) {
+void MP_CombLtoRMul_w(MPN *res, MPN a, MPN b, unsigned w) {
 
-    MPN c = init_empty(2 * T);
+    MPN c;
+
+    c = init_empty(2 * T);
 
     int b_u_array_size = (int) pow(2, w);
     LIMB b_u_index = 0;
     MPN b_u[b_u_array_size];
 
     b_u[0] = init(&b_u_index, 1);
+    for (int l = 1; l < b_u_array_size; ++l) {
 
-    for (LIMB l = 1; l < b_u_array_size; ++l) {
+        b_u_index = (LIMB) l;
 
-        b_u_index = l;
-
-        b_u[l] = MP_CombLtoRMul(b, init(&b_u_index, 1));
+        b_u[l] = init_null();
+        MP_CombLtoRMul(&b_u[l], b, init(&b_u_index, 1));
+        removeLeadingZeroLimbs(&b_u[l]);
     }
 
     // k rappresenta il numero di shift in un limb
     for (int k = (LIMB_BITS / w) - 1; k >= 0; --k) {
-
         // j seleziona a ogni ciclo il limb
         for (int j = a.limbNumber - 1; j >= 0; --j) {
+
 
             LIMB w_bits_value = ((a.num[j] >> (k * w)) & ((LIMB) pow(2, w) - 1));
 
@@ -304,53 +347,44 @@ MPN MP_CombLtoRMul_w(MPN a, MPN b, unsigned w) {
                 c.num[c.limbNumber - 1 - (a.limbNumber - 1 - j) - i] ^= bu.num[bu.limbNumber - 1 - i];
             }
 
+
         }
         if (k != 0)
-            for (int l = 0; l < w; ++l) {
-                MP_bitShiftLeft(&c, 1);
-            }
+            MP_bitShiftLeft(&c, w);
+
 
     }
+    MP_free(*res);
+    *res = c;
 
-    for (LIMB l = 1; l < b_u_array_size; ++l) {
-
-        MP_free(b_u[l]);
-    }
-
-
-    return removeLeadingZeroLimbs(c);
 
 } // end MP_CombLtoRMul_w
 
 
 /*---------------------------------------------------------------------------*/
 
-MPN MP_KaratsubaMul(MPN factor1, MPN factor2) {
+void MP_KaratsubaMul(MPN *result, MPN factor1, MPN factor2) {
 
-    MPN a = factor1;
-    MPN b = factor2;
-    LIMB zero_limb[] = {0x0};
-    MPN zero = init(zero_limb, 1);
-
-
-    if (a.limbNumber == 1 && b.limbNumber == 1) {
-        return MP_CombRtoLMul(a, b);
+    if (factor1.limbNumber == 1 && factor2.limbNumber == 1) {
+        MP_CombRtoLMul(result, factor1, factor2);
+        return;
     }
 
-// se aggiungo zeri iniziali per raggiungere uguale lunghezza funziona
+    MPN a = init(factor1.num, factor1.limbNumber), b = init(factor2.num, factor2.limbNumber);
+    MPN zero = init_empty(1);
 
     if (a.limbNumber > b.limbNumber) {
-        b = MP_Addition(init_empty(a.limbNumber), b);
+        MP_Addition(&b, init_empty(a.limbNumber), b);
     } else if (b.limbNumber > a.limbNumber) {
-        a = MP_Addition(init_empty(b.limbNumber), a);
+        MP_Addition(&a, init_empty(b.limbNumber), a);
     }
 
 
     if (a.limbNumber != 1 && b.limbNumber != 1) {
 
-        MPN first, second, third, A_01, B_01, a01perb01;
+        MPN first = init_null(), second = init_null(), third = init_null(), A_01 = init_null(), B_01 = init_null(), a01perb01 = init_null();
 
-        MPN c = init_empty(1);
+        MPN c;
 
         MPN A_0 = init(&a.num[0], a.limbNumber - (a.limbNumber) / 2);
         MPN A_1 = init(&a.num[a.limbNumber - (a.limbNumber) / 2], (a.limbNumber) / 2);
@@ -361,28 +395,26 @@ MPN MP_KaratsubaMul(MPN factor1, MPN factor2) {
         if (isZero(A_0) || isZero(B_0))
             first = zero;
         else
-            first = MP_KaratsubaMul(A_0, B_0);
-        c = MP_Addition(c, first);
-        for (unsigned i = 0; i < b.limbNumber - b.limbNumber % 2; i++) {
-            c = limbShiftLeft(c, 1);
-        }
+            MP_KaratsubaMul(&first, A_0, B_0);
 
-        third = MP_KaratsubaMul(A_1, B_1);
-        c = MP_Addition(c, third);
+        c = init(first.num, first.limbNumber);
+        limbShiftLeft(&c, b.limbNumber - b.limbNumber % 2);
 
-        A_01 = MP_Addition(A_0, A_1);
+        MP_KaratsubaMul(&third, A_1, B_1);
+        MP_Addition(&c, c, third);
 
-        B_01 = MP_Addition(B_0, B_1);
+        MP_Addition(&A_01, A_0, A_1);
 
-        second = MP_Addition(first, third);
-        a01perb01 = MP_KaratsubaMul(A_01, B_01);
-        second = MP_Addition(second, a01perb01);
+        MP_Addition(&B_01, B_0, B_1);
 
-        for (unsigned i = 0; i < (b.limbNumber) / 2; i++) {
-            second = limbShiftLeft(second, 1);
-        }
+        MP_Addition(&second, first, third);
+        MP_KaratsubaMul(&a01perb01, A_01, B_01);
+        MP_Addition(&second, second, a01perb01);
 
-        c = MP_Addition(c, second);
+        limbShiftLeft(&second, (b.limbNumber) / 2);
+
+
+        MP_Addition(&c, c, second);
 
         MP_free(first);
         MP_free(second);
@@ -390,36 +422,40 @@ MPN MP_KaratsubaMul(MPN factor1, MPN factor2) {
         MP_free(A_01);
         MP_free(B_01);
         MP_free(a01perb01);
-
-        return c;
+        MP_free(a);
+        MP_free(b);
+        MP_free(*result);
+        *result = c;
+        return;
     }
+
 
     MPN *ptrLenIsOne, *ptrOther;
-    if (a.limbNumber == 1) {
-        ptrLenIsOne = &a;
-        ptrOther = &b;
-    } else if (b.limbNumber == 1) {
-        ptrLenIsOne = &b;
-        ptrOther = &a;
+    if (factor1.limbNumber == 1) {
+        ptrLenIsOne = &factor1;
+        ptrOther = &factor2;
+    } else if (factor2.limbNumber == 1) {
+        ptrLenIsOne = &factor2;
+        ptrOther = &factor1;
     }
 
-    MPN c = init_empty(1);
+    MPN c;
 
     MPN A_0 = init(&(ptrLenIsOne->num[0]), 1);
 
     MPN B_0 = init(&(ptrOther->num[0]), ptrOther->limbNumber - (ptrOther->limbNumber) / 2);
     MPN B_1 = init(&(ptrOther->num[ptrOther->limbNumber - (ptrOther->limbNumber) / 2]), (ptrOther->limbNumber) / 2);
 
-    MPN A0B0 = MP_KaratsubaMul(A_0, B_0);
-    MPN A0B1 = MP_KaratsubaMul(A_0, B_1);
+    MPN A0B0 = init_null();
+    MP_KaratsubaMul(&A0B0, A_0, B_0);
+    MPN A0B1 = init_null();
+    MP_KaratsubaMul(&A0B1, A_0, B_1);
 
-    c = MP_Addition(c, A0B0);
+    c = init(A0B0.num, A0B0.limbNumber);
 
-    for (unsigned i = 0; i < ptrOther->limbNumber; i++) {
-        c = limbShiftLeft(c, 1);
-    }
+    limbShiftLeft(&c, ptrOther->limbNumber);
 
-    c = MP_Addition(c, A0B1);
+    MP_Addition(&c, c, A0B1);
 
     MP_free(zero);
     MP_free(A_0);
@@ -428,7 +464,8 @@ MPN MP_KaratsubaMul(MPN factor1, MPN factor2) {
     MP_free(A0B0);
     MP_free(A0B1);
 
-    return c;
+    MP_free(*result);
+    *result = c;
 
 
 } //end MP_KaratsubaMul
@@ -448,10 +485,15 @@ MPN MP_Squaring(MPN a) {
     uint8_t *a1 = (uint8_t *) a.num;
     uint16_t *c1 = (uint16_t *) c.num;
     int k = 0;
-    int h;
-    if (n1 == 1)
-        h = 0;
-    else h = n1 / 2 - 1;
+
+    if (n1 == 1) {
+        for (int i = 0; i < n; i++) {
+            c1[i] = (precomputed[a1[i]] << 8) ^ (precomputed[a1[i]] >> 8);
+        }
+        return c;
+    }
+
+    int h = n1 / 2 - 1;
 
     for (int i = 0; i < n; i++) {
         for (int j = n1 - 1; j >= 0; j--) {
@@ -468,16 +510,16 @@ MPN MP_Squaring(MPN a) {
     return c;
 } // end MP_Squaring
 
-
 /*---------------------------------------------------------------------------*/
 //2.40
 // assumption: a has degree <= 2m-2, irr proper
 // irr(z) = z^m + r(z) where degree of r(z) is <= m-1
-MPN MP_Reduce(MPN a, MPN irr_poly, int powerOfTwo) {
+
+void MP_Reduce(MPN *result, MPN a, MPN irr_poly, int powerOfTwo) {
 
     int block, tot_bits, extra_bits, extra_block;
 
-    MPN c, r = copy(irr_poly);
+    MPN c, r = init(irr_poly.num, irr_poly.limbNumber);
     MPN u[LIMB_BITS] = {0};
 
     int limb = 0, temp = 0;
@@ -496,7 +538,7 @@ MPN MP_Reduce(MPN a, MPN irr_poly, int powerOfTwo) {
 
 // Precomputation of z^k * r(z)
     for (int k = 0; k < LIMB_BITS; ++k) {
-        u[k] = copy(r);
+        u[k] = init(r.num, r.limbNumber);
         MP_bitShiftLeft(&r, 1);
     }
 
@@ -521,10 +563,7 @@ MPN MP_Reduce(MPN a, MPN irr_poly, int powerOfTwo) {
 
     c = init_empty(T);
 
-    extra_bits = tot_bits - powerOfTwo;
-    extra_block = extra_bits / LIMB_BITS;
-
-    LIMB mask = ~(~(0 << (extra_bits - extra_block * LIMB_BITS)) << (LIMB_BITS - extra_bits - extra_block * LIMB_BITS));
+    LIMB mask = (LIMB) ~(((1 << S) - 1) << (LIMB_BITS - S));
 
     for (int m = T - 1; m >= 0; m--) {
         if (m == 0) {
@@ -536,10 +575,13 @@ MPN MP_Reduce(MPN a, MPN irr_poly, int powerOfTwo) {
 
     MP_free(r);
     for (int k = 0; k < LIMB_BITS; ++k) {
-        free(&u[k]);
+        MP_free(u[k]);
     }
 
-    return removeLeadingZeroLimbs(c);
+    removeLeadingZeroLimbs(&c);
+    MP_free(*result);
+    *result = c;
+
 } //end MP_Reduce
 
 /*---------------------------------------------------------------------------*/
@@ -549,8 +591,8 @@ MPN MP_Reduce(MPN a, MPN irr_poly, int powerOfTwo) {
 MPN MP_Inversion_EE(MPN a, MPN irr_poly) {
 
     MPN swap, shifted_v, shifted_g2;
-    MPN u = copy(a);
-    MPN v = copy(irr_poly);
+    MPN u = init(a.num, a.limbNumber);
+    MPN v = init(irr_poly.num, irr_poly.limbNumber);
 
     LIMB one[] = {1};
     LIMB zero[] = {0};
@@ -576,16 +618,16 @@ MPN MP_Inversion_EE(MPN a, MPN irr_poly) {
             j = -j;
         }
 
-        shifted_v = copy(v);
-        shifted_g2 = copy(g2);
+        shifted_v = init(v.num, v.limbNumber);
+        shifted_g2 = init(g2.num, g2.limbNumber);
 
         for (int l = 0; l < j; ++l) {
             MP_bitShiftLeft(&shifted_v, 1);
             MP_bitShiftLeft(&shifted_g2, 1);
         }
 
-        u = MP_Addition(u, shifted_v);
-        g1 = MP_Addition(g1, shifted_g2);
+        MP_Addition(&u, u, shifted_v);
+        MP_Addition(&g1, g1, shifted_g2);
 
         MP_free(shifted_g2);
         MP_free(shifted_v);
@@ -595,85 +637,8 @@ MPN MP_Inversion_EE(MPN a, MPN irr_poly) {
     MP_free(v);
     MP_free(g2);
     return g1;
-
-} // end MP_Inversion_EE
-
-
-
-/*---------------------------------------------------------------------------*/
-//2.49
-//Assumptions a has max degree m-1 and !=0, irr_poly is an irreducible polynomial with degree m
-//binary algorithm for inversion
-
-MPN MP_Inversion_Binary(MPN a, MPN irr_poly) {
-
-    MPN u = copy(a);
-    MPN v = copy(irr_poly);
-
-    LIMB one[] = {1};
-    LIMB zero[] = {0};
-
-    MPN g1 = init(one, 1);
-    MPN g2 = init(zero, 1);
-
-    while (!isOne(u) && !isOne(v)) {
-
-
-        while (!isZero(u) && (u.num[u.limbNumber - 1] & 1) == 0) { //z divides u
-
-            MP_bitShiftRight(&u); // u = u/z
-
-            if ((g1.num[g1.limbNumber - 1] & 1)) { //z doesn't divide g1
-                g1 = MP_Addition(g1, irr_poly);
-            }
-
-            MP_bitShiftRight(&g1);
-        }
-
-        while (!isZero(v) && (v.num[v.limbNumber - 1] & 1) == 0) {
-
-            MP_bitShiftRight(&v); // v = v/z
-
-            if ((g2.num[g2.limbNumber - 1] & 1)) { //z doesn't divide g1
-                g2 = MP_Addition(g2, irr_poly);
-            }
-
-            MP_bitShiftRight(&g2);
-        }
-
-        if (degree(u) > degree(v)) {
-
-            u = MP_Addition(u, v);
-            g1 = MP_Addition(g1, g2);
-
-        } else {
-
-            v = MP_Addition(v, u);
-            g2 = MP_Addition(g1, g2);
-
-        }
-
-    }
-
-    MP_free(v);
-
-    if (isOne(u)) {
-        MP_free(g2);
-        MP_free(u);
-
-        return removeLeadingZeroLimbs(g1);
-    } else {
-        MP_free(g1);
-        MP_free(u);
-
-        return removeLeadingZeroLimbs(g2);
-    }
-
-
-} // end MP_Inversion_Binary
-
-
-/*---------------------------------------------------------------------------*/
+}
+/*    ------------------------------------------------------------------------*/
 
 /*
  * Assumptions: a!=0, b have max degree m-1 , irr_poly is an irreducible polynomial with degree m
@@ -688,12 +653,12 @@ MPN MP_Division_Bin_Inv(MPN a, MPN b, MPN irr_poly) {
         exit(EXIT_FAILURE);
     }
 
-    MPN u = copy(b);
-    MPN v = copy(irr_poly);
+    MPN u = init(b.num, b.limbNumber);
+    MPN v = init(irr_poly.num, irr_poly.limbNumber);
 
     LIMB zero[] = {0};
 
-    MPN g1 = copy(a);
+    MPN g1 = init(a.num, a.limbNumber);
     MPN g2 = init(zero, 1);
 
     while (!isOne(u) && !isOne(v)) {
@@ -703,7 +668,7 @@ MPN MP_Division_Bin_Inv(MPN a, MPN b, MPN irr_poly) {
             MP_bitShiftRight(&u); // u = u/z
 
             if ((g1.num[g1.limbNumber - 1] & 1)) { //z doesn't divide g1
-                g1 = MP_Addition(g1, irr_poly);
+                MP_Addition(&g1, irr_poly, g1);
             }
 
             MP_bitShiftRight(&g1);
@@ -714,19 +679,19 @@ MPN MP_Division_Bin_Inv(MPN a, MPN b, MPN irr_poly) {
             MP_bitShiftRight(&v); // v = v/z
 
             if ((g2.num[g2.limbNumber - 1] & 1)) { //z doesn't divide g1
-                g2 = MP_Addition(g2, irr_poly);
+                MP_Addition(&g2, irr_poly, g2);
             }
 
             MP_bitShiftRight(&g2);
         }
 
         if (degree(u) > degree(v)) {
-            u = MP_Addition(u, v);
-            g1 = MP_Addition(g1, g2);
+            MP_Addition(&u, v, u);
+            MP_Addition(&g1, g2, g1);
 
         } else {
-            v = MP_Addition(v, u);
-            g2 = MP_Addition(g1, g2);
+            MP_Addition(&v, u, v);
+            MP_Addition(&g2, g1, g2);
         }
     }
 
@@ -734,14 +699,14 @@ MPN MP_Division_Bin_Inv(MPN a, MPN b, MPN irr_poly) {
         MP_free(u);
         MP_free(v);
         MP_free(g2);
-
-        return removeLeadingZeroLimbs(g1);
+        removeLeadingZeroLimbs(&g1);
+        return g1;
     } else {
         MP_free(u);
         MP_free(v);
         MP_free(g1);
-
-        return removeLeadingZeroLimbs(g2);
+        removeLeadingZeroLimbs(&g2);
+        return g2;
     }
 
 } // end MP_Division_Bin_Inv
@@ -752,7 +717,7 @@ MPN MP_Division_Bin_Inv(MPN a, MPN b, MPN irr_poly) {
 void MP_exactDivOnePlusX(MPN poly) {
     LIMB t = 0;
     long i;
-//    poly = removeLeadingZeroLimbs(poly);
+
     for (i = poly.limbNumber - 1; i >= 0; i--) {
         t ^= poly.num[i];
 
@@ -834,19 +799,19 @@ void MP_exactDivXtwoPlusXFour(MPN poly) {
 
 /*---------------------------------------------------------------------------*/
 
-MPN MP_Toom3(MPN a, MPN b) {
+void MP_Toom3(MPN *result, MPN a, MPN b) {
 
-    MPN u = copy(a);
-    MPN v = copy(b);
+    MPN u = init(a.num, a.limbNumber), v = init(b.num, b.limbNumber);
+
 
     if (u.limbNumber < 3 && v.limbNumber < 3) {
-        return MP_CombRtoLMul(u, v);
+        MP_CombRtoLMul(result, u, v);
+        return;
     }
 
-    MPN u2, u1, u0, v2, v1, v0, w, w0, w1, w2, w3, w4, u2perx2, u1perx;
+
+    MPN u2, u1, u0, v2, v1, v0;
     MPN *ptrMax, *ptrMin;
-    LIMB xterzapiuuno_limb[] = {0x9};
-    MPN xterzapiuuno = init(xterzapiuuno_limb, 1);
 
 
     if (u.limbNumber >= v.limbNumber) {
@@ -857,7 +822,8 @@ MPN MP_Toom3(MPN a, MPN b) {
         ptrMin = &u;
     }
 
-    *ptrMin = MP_Addition(init_empty(ptrMax->limbNumber), *ptrMin);
+    MP_Addition(ptrMin, init_empty(ptrMax->limbNumber), *ptrMin);
+
 
     unsigned u_limbs_div3 = u.limbNumber / 3;
     int bih;
@@ -890,73 +856,100 @@ MPN MP_Toom3(MPN a, MPN b) {
 
     }
 
+
+    MPN w = init_null();
+    MPN w0 = init_null(), w1 = init_null(), w2 = init_null(), w3 = init_null(), w4 = init_null();
+
+    LIMB xterzapiuuno_limb[] = {0x9};
+    MPN xterzapiuuno = init(xterzapiuuno_limb, 1);
+
+
     //EVALUATION
 
-    w3 = MP_Addition(MP_Addition(u0, u1), u2);
+    MPN temp = init_null();
+    MP_Addition(&temp, u0, u1);
+    MP_Addition(&w3, temp, u2);
 
-    w2 = MP_Addition(MP_Addition(v0, v1), v2);
+    MP_Addition(&temp, v0, v1);
+    MP_Addition(&w2, temp, v2);
 
-    w1 = MP_Toom3(w3, w2);
+    MP_Toom3(&w1, w3, w2);
 
-    u2perx2 = copy(u2); //per 0x4
+    MPN u2perx2 = init(u2.num, u2.limbNumber);
     MP_bitShiftLeft(&u2perx2, 2);
 
-    u1perx = copy(u1); //per 0x2
+    MPN u1perx = init(u1.num, u1.limbNumber);
     MP_bitShiftLeft(&u1perx, 1);
 
-    w0 = MP_Addition(u2perx2, u1perx);
+    MP_Addition(&w0, u2perx2, u1perx);
 
-    MPN v2perx2 = copy(v2);
+    MPN v2perx2 = init(v2.num, v2.limbNumber);
     MP_bitShiftLeft(&v2perx2, 2);
 
-    MPN v1perx = copy(v1);
+    MPN v1perx = init(v1.num, v1.limbNumber);
     MP_bitShiftLeft(&v1perx, 1);
 
-    w4 = MP_Addition(v2perx2, v1perx);
+    MP_Addition(&w4, v2perx2, v1perx);
 
-    w3 = MP_Addition(w3, w0);
+    MP_Addition(&w3, w3, w0);
+    MP_Addition(&w2, w2, w4);
 
-    w2 = MP_Addition(w2, w4);
+    MP_Addition(&w0, w0, u0);
+    MP_Addition(&w4, w4, v0);
 
-    w0 = MP_Addition(w0, u0);
+    MP_Toom3(&w3, w3, w2);
+    MP_Toom3(&w2, w0, w4);
 
-    w4 = MP_Addition(w4, v0);
 
-    w3 = MP_Toom3(w3, w2);
+    MP_Toom3(&w4, u2, v2);
+    MP_Toom3(&w0, u0, v0);
 
-    w2 = MP_Toom3(w0, w4);
-
-    w4 = MP_Toom3(u2, v2);
-
-    w0 = MP_Toom3(u0, v0);
 
     //INTERPOLATION
 
-    w3 = MP_Addition(w3, w2);
 
-    w2 = MP_Addition(w2, w0);
+    MP_Addition(&w3, w3, w2);
+
+
+    MP_Addition(&w2, w2, w0);
 
     MP_bitShiftRight(&w2);
-//    w2 = MP_Addition(MP_Addition(w2, w3), MP_Toom3(xterzapiuuno, w4));
-    w2 = MP_Addition(MP_Addition(w2, w3), MP_CombRtoLMul(xterzapiuuno, w4));
+
+    MP_Addition(&temp, w2, w3);
+    MP_Toom3(&xterzapiuuno, xterzapiuuno, w4);
+    MP_Addition(&w2, temp, xterzapiuuno);
+
 
     MP_exactDivOnePlusX(w2);
 
-    w1 = MP_Addition(w1, w0);
 
-    w3 = MP_Addition(w3, w1);
+    MP_Addition(&w1, w1, w0);
+
+
+    MP_Addition(&w3, w3, w1);
+
     MP_bitShiftRight(&w3);
+
     MP_exactDivOnePlusX(w3);
 
-    w1 = MP_Addition(MP_Addition(w1, w4), w2);
 
-    w2 = MP_Addition(w2, w3);
+    MP_Addition(&temp, w1, w4);
+    MP_Addition(&w1, temp, w2);
 
-    w = MP_Addition(w0, limbShiftLeft(w1, 1 * bih));
-    w = MP_Addition(w, limbShiftLeft(w2, 2 * bih));
-    w = MP_Addition(w, limbShiftLeft(w3, 3 * bih));
-    w = MP_Addition(w, limbShiftLeft(w4, 4 * bih));
 
+    MP_Addition(&w2, w2, w3);
+
+
+    limbShiftLeft(&w1, 1 * bih);
+    MP_Addition(&w, w0, w1);
+    limbShiftLeft(&w2, 2 * bih);
+    MP_Addition(&w, w, w2);
+    limbShiftLeft(&w3, 3 * bih);
+    MP_Addition(&w, w, w3);
+    limbShiftLeft(&w4, 4 * bih);
+    MP_Addition(&w, w, w4);
+
+    MP_free(temp);
     MP_free(u);
     MP_free(u0);
     MP_free(u1);
@@ -975,23 +968,28 @@ MPN MP_Toom3(MPN a, MPN b) {
     MP_free(w2);
     MP_free(w3);
     MP_free(w4);
-
-    return removeLeadingZeroLimbs(w);
+    MP_free(*result);
+    removeLeadingZeroLimbs(&w);
+    *result = w;
 } // end MP_Toom3
 
 
 /*---------------------------------------------------------------------------*/
 
-MPN MP_Toom4(MPN a, MPN b) {
+void MP_Toom4(MPN *result, MPN a, MPN b) {
 
-    MPN u = copy(a);
-    MPN v = copy(b);
-
-    if (u.limbNumber < 4 && v.limbNumber < 4) {
-        return MP_CombRtoLMul(u, v);
+    if (a.limbNumber < 4 && b.limbNumber < 4) {
+        MP_CombRtoLMul(result, a, b);
+        return;
     }
 
-    MPN u3, u2, u1, u0, v3, v2, v1, v0, w, w0, w1, w2, w3, w4, w5, w6;
+
+    MPN u = init(a.num, a.limbNumber);
+    MPN v = init(b.num, b.limbNumber);
+
+
+    MPN u3, u2, u1, u0, v3, v2, v1, v0, w = init_null(), w0 = init_null(), w1 = init_null(),
+            w2 = init_null(), w3 = init_null(), w4 = init_null(), w5 = init_null(), w6 = init_null();
     MPN *ptrMax, *ptrMin;
     unsigned u_limbs_div4;
     int bih;
@@ -1007,7 +1005,7 @@ MPN MP_Toom4(MPN a, MPN b) {
         ptrMin = &u;
     }
 
-    *ptrMin = MP_Addition(init_empty(ptrMax->limbNumber), *ptrMin);
+    MP_Addition(ptrMin, init_empty(ptrMax->limbNumber), *ptrMin);
 
 
     u_limbs_div4 = u.limbNumber / 4;
@@ -1073,162 +1071,192 @@ MPN MP_Toom4(MPN a, MPN b) {
 
 
     //EVALUATION
+    MP_Addition(&w1, u1, u0);
+    MP_Addition(&w1, u2, w1);
+    MP_Addition(&w1, u3, w1);
 
-    w1 = MP_Addition(u3, MP_Addition(u2, MP_Addition(u1, u0)));
-    w2 = MP_Addition(v3, MP_Addition(v2, MP_Addition(v1, v0)));
+    MP_Addition(&w2, v1, v0);
+    MP_Addition(&w2, v2, w2);
+    MP_Addition(&w2, v3, w2);
 
-    w3 = MP_Toom4(w1, w2);
+    MP_Toom4(&w3, w1, w2);
 
-    MPN temp = copy(u3); //per 0x2
+    MPN temp = init(u3.num, u3.limbNumber); //per 0x2
     MP_bitShiftLeft(&temp, 1);
-    temp = MP_Addition(u2, temp);
+    MP_Addition(&temp, u2, temp);
     MP_bitShiftLeft(&temp, 1);
-    w0 = MP_Addition(u1, temp);
+    MP_Addition(&w0, u1, temp);
 
-    temp = copy(v3); //per 0x2
+    MP_free(temp);
+    temp = init(v3.num, v3.limbNumber); //per 0x2
     MP_bitShiftLeft(&temp, 1);
-    temp = MP_Addition(v2, temp);
+    MP_Addition(&temp, v2, temp);
     MP_bitShiftLeft(&temp, 1);
-    w6 = MP_Addition(v1, temp);
+    MP_Addition(&w6, v1, temp);
 
-    temp = MP_Addition(w0, (MP_Toom4(u3, xpiuuno)));
+    MP_Toom4(&temp, u3, xpiuuno);
+    MP_Addition(&temp, w0, temp);
     MP_bitShiftLeft(&temp, 1);
-    w4 = MP_Addition(w1, temp);
+    MP_Addition(&w4, w1, temp);
 
-    temp = MP_Addition(w6, MP_Toom4(v3, xpiuuno));
+    MP_Toom4(&temp, v3, xpiuuno);
+    MP_Addition(&temp, w6, temp);
     MP_bitShiftLeft(&temp, 1);
-    w5 = MP_Addition(temp, w2);
+    MP_Addition(&w5, temp, w2);
 
     MP_bitShiftLeft(&w0, 1);
-    w0 = MP_Addition(w0, u0);
+    MP_Addition(&w0, u0, w0);
 
     MP_bitShiftLeft(&w6, 1);
-    w6 = MP_Addition(w6, v0);
+    MP_Addition(&w6, v0, w6);
 
-    w5 = MP_Toom4(w5, w4);
+    MP_Toom4(&w5, w5, w4);
+    MP_Toom4(&w4, w6, w0);
 
-    w4 = MP_Toom4(w6, w0);
-
-    temp = copy(u2);
+    MP_free(temp);
+    temp = init(u2.num, u2.limbNumber);
     MP_bitShiftLeft(&temp, 1);
     MPN temp1;
-    temp1 = copy(u1);
+    temp1 = init(u1.num, u1.limbNumber);
     MP_bitShiftLeft(&temp1, 2);
-    w0 = MP_Addition(temp, temp1);
-    temp = copy(u0);
+    MP_Addition(&w0, temp, temp1);
+    MP_free(temp);
+    temp = init(u0.num, u0.limbNumber);
     MP_bitShiftLeft(&temp, 3); //per x^3
-    w0 = MP_Addition(w0, temp);
+    MP_Addition(&w0, temp, w0);
 
-    temp = copy(v2);
+    MP_free(temp);
+    temp = init(v2.num, v2.limbNumber);
     MP_bitShiftLeft(&temp, 1);
-    temp1 = copy(v1);
+    temp1 = init(v1.num, v1.limbNumber);
     MP_bitShiftLeft(&temp1, 2);
-    w6 = MP_Addition(temp, temp1);
-    temp = copy(v0);
+    MP_Addition(&w6, temp, temp1);
+    MP_free(temp);
+    temp = init(v0.num, v0.limbNumber);
     MP_bitShiftLeft(&temp, 3); //per x^3
-    w6 = MP_Addition(w6, temp);
+    MP_Addition(&w6, temp, w6);
 
-    w1 = MP_Addition(w1, w0);
+    MP_Addition(&w1, w0, w1);
 
-    temp = copy(u0);
+    MP_free(temp);
+    temp = init(u0.num, u0.limbNumber);
     MP_bitShiftLeft(&temp, 1);
-    w1 = MP_Addition(w1, temp); // w1 + u0*x
+    MP_Addition(&w1, temp, w1); // w1 + u0*x
     MP_bitShiftLeft(&temp, 1);
-    w1 = MP_Addition(w1, temp); // w1 + u0*x^2
+    MP_Addition(&w1, w1, temp); // w1 + u0*x^2
 
-    w2 = MP_Addition(w2, w6);
-    temp = copy(v0);
+    MP_Addition(&w2, w6, w2);
+    MP_free(temp);
+    temp = init(v0.num, v0.limbNumber);
     MP_bitShiftLeft(&temp, 1);
-    w2 = MP_Addition(w2, temp); // w2 + u0*x
+    MP_Addition(&w2, temp, w2); // w2 + u0*x
     MP_bitShiftLeft(&temp, 1);
-    w2 = MP_Addition(w2, temp); // w2 + u0*x^2
+    MP_Addition(&w2, temp, w2); // w2 + u0*x^2
 
-    w0 = MP_Addition(w0, u3);
+    MP_Addition(&w0, u3, w0);
 
-    w6 = MP_Addition(w6, v3);
+    MP_Addition(&w6, v3, w6);
 
-    w1 = MP_Toom4(w1, w2);
+    MP_Toom4(&w1, w1, w2);
 
-    w2 = MP_Toom4(w0, w6);
+    MP_Toom4(&w2, w0, w6);
 
-    w6 = MP_Toom4(u3, v3);
+    MP_Toom4(&w6, u3, v3);
 
-    w0 = MP_Toom4(u0, v0);
+    MP_Toom4(&w0, u0, v0);
 
 
     //INTERPOLATION
 
-    w1 = MP_Addition(w1, w2);
-    w1 = MP_Addition(w1, w0); //+w0
-    temp = copy(w0);
+    MP_Addition(&w1, w2, w1);
+    MP_Addition(&w1, w0, w1); //+w0
+    MP_free(temp);
+    temp = init(w0.num, w0.limbNumber);
     MP_bitShiftLeft(&temp, 2); //+w0*x^2
-    w1 = MP_Addition(w1, temp);
+    MP_Addition(&w1, temp, w1);
     MP_bitShiftLeft(&temp, 2);
-    w1 = MP_Addition(w1, temp); //+w0*x^4
+    MP_Addition(&w1, temp, w1); //+w0*x^4
 
-    w5 = MP_Addition(w5, w4);
-    w5 = MP_Addition(w5, w6);
-    temp = copy(w6);
+    MP_Addition(&w5, w4, w5);
+    MP_Addition(&w5, w6, w5);
+    MP_free(temp);
+    temp = init(w6.num, w6.limbNumber);
     MP_bitShiftLeft(&temp, 2);
-    w5 = MP_Addition(w5, temp);
+    MP_Addition(&w5, w5, temp);
     MP_bitShiftLeft(&temp, 2);
-    w5 = MP_Addition(w5, temp);
-    w5 = MP_Addition(w5, w1);
+    MP_Addition(&w5, w5, temp);
+    MP_Addition(&w5, w5, w1);
     MP_exactDivXPlusXFour(w5);
 
-    w2 = MP_Addition(w2, w6);
-    temp = copy(w0);
+    MP_Addition(&w2, w2, w6);
+    MP_free(temp);
+    temp = init(w0.num, w0.limbNumber);
     MP_bitShiftLeft(&temp, 6);
-    w2 = MP_Addition(w2, temp);
+    MP_Addition(&w2, temp, w2);
 
-    w4 = MP_Addition(w4, MP_Addition(w2, w0));
-    temp = copy(w6);
+    MP_Addition(&temp, w2, w0);
+    MP_Addition(&w4, w4, temp);
+    MP_free(temp);
+    temp = init(w6.num, w6.limbNumber);
     MP_bitShiftLeft(&temp, 6);
-    w4 = MP_Addition(w4, temp);
+    MP_Addition(&w4, w4, temp);
 
-    temp = copy(w5);
+    MP_free(temp);
+    temp = init(w5.num, w5.limbNumber);
     MP_bitShiftLeft(&temp, 1);
-    w4 = MP_Addition(w4, temp); //w4 + w5*x
+    MP_Addition(&w4, w4, temp); //w4 + w5*x
     MP_bitShiftLeft(&temp, 4); //w5*x^5
-    w4 = MP_Addition(w4, temp); //w4 + w5*x
+    MP_Addition(&w4, w4, temp); //w4 + w5*x
     MP_exactDivXtwoPlusXFour(w4);
 
-    w3 = MP_Addition(w3, MP_Addition(w0, w6));
+    MP_Addition(&temp, w0, w6);
+    MP_Addition(&w3, w3, temp);
 
-    w1 = MP_Addition(w1, w3);
+    MP_Addition(&w1, w1, w3);
 
-    temp = copy(w1);
+    MP_free(temp);
+    temp = init(w1.num, w1.limbNumber);
     MP_bitShiftLeft(&temp, 1);
-    temp1 = copy(w3);
+    temp1 = init(w3.num, w3.limbNumber);
     MP_bitShiftLeft(&temp1, 2);
-    w2 = MP_Addition(w2, MP_Addition(temp, temp1));
+    MP_Addition(&temp, temp, temp1);
+    MP_Addition(&w2, w2, temp);
 
-    w3 = MP_Addition(w3, MP_Addition(w4, w5));
+    MP_Addition(&temp, w4, w5);
+    MP_Addition(&w3, w3, temp);
 
-    temp = copy(w3);
+    MP_free(temp);
+    temp = init(w3.num, w3.limbNumber);
     MP_bitShiftLeft(&temp, 1); //w3*x
-    w1 = MP_Addition(w1, temp); //w1 + w3*x
+    MP_Addition(&w1, w1, temp); //w1 + w3*x
     MP_bitShiftLeft(&temp, 1); //w3*x^2
-    w1 = MP_Addition(w1, temp); //w1 + w3*x^2
+    MP_Addition(&w1, w1, temp); //w1 + w3*x^2
     MP_exactDivXPlusXFour(w1);
 
-    w5 = MP_Addition(w5, w1);
+    MP_Addition(&w5, w5, w1);
 
-    temp = copy(w5);
+    MP_free(temp);
+    temp = init(w5.num, w5.limbNumber);
     MP_bitShiftLeft(&temp, 1); //w5*x
-    w2 = MP_Addition(w2, temp);
+    MP_Addition(&w2, temp, w2);
     MP_bitShiftLeft(&temp, 1); //w5*x^2
-    w2 = MP_Addition(w2, temp);
+    MP_Addition(&w2, temp, w2);
     MP_exactDivXtwoPlusXFour(w2);
 
-    w4 = MP_Addition(w4, w2);
+    MP_Addition(&w4, w2, w4);
 
-    w = MP_Addition(w0, limbShiftLeft(w1, 1 * bih));
-    w = MP_Addition(w, limbShiftLeft(w2, 2 * bih));
-    w = MP_Addition(w, limbShiftLeft(w3, 3 * bih));
-    w = MP_Addition(w, limbShiftLeft(w4, 4 * bih));
-    w = MP_Addition(w, limbShiftLeft(w5, 5 * bih));
-    w = MP_Addition(w, limbShiftLeft(w6, 6 * bih));
+    limbShiftLeft(&w1, 1 * bih);
+    MP_Addition(&w, w0, w1);
+    limbShiftLeft(&w2, 2 * bih);
+    MP_Addition(&w, w, w2);
+    limbShiftLeft(&w3, 3 * bih);
+    MP_Addition(&w, w, w3);
+    limbShiftLeft(&w4, 4 * bih);
+    MP_Addition(&w, w, w4);
+    limbShiftLeft(&w5, 5 * bih);
+    MP_Addition(&w, w, w5);
+    limbShiftLeft(&w6, 6 * bih);
+    MP_Addition(&w, w, w6);
 
 
     MP_free(u);
@@ -1252,14 +1280,18 @@ MPN MP_Toom4(MPN a, MPN b) {
     MP_free(temp);
     MP_free(temp1);
 
-    return removeLeadingZeroLimbs(w);
+    removeLeadingZeroLimbs(&w);
+
+    MP_free(*result);
+    *result = w;
 } // end MP_toom4
 
 /*---------------------------------------------------------------------------*/
 
 bool isOne(MPN mp) {
 
-    MPN x_mp = removeLeadingZeroLimbs(mp);
+    MPN x_mp = init(mp.num, mp.limbNumber);
+    removeLeadingZeroLimbs(&x_mp);
 
     if (x_mp.limbNumber == 1 && x_mp.num[0] == 1) {
         MP_free(x_mp);
@@ -1277,15 +1309,17 @@ bool isOne(MPN mp) {
  * It eliminates leading 0s LIMBs, returning the minimum length MPN with the same value
  * if value is zero then leaves just a zeroed limb
 */
-MPN removeLeadingZeroLimbs(MPN poly) {
+void removeLeadingZeroLimbs(MPN *poly) {
     unsigned counter = 0;
-    for (int i = 0; i < poly.limbNumber - 1; ++i) {
-        if (poly.num[i] == 0) {
+    for (int i = 0; i < poly->limbNumber - 1; ++i) {
+        if (poly->num[i] == 0) {
             counter++;
         } else
             break;
     }
-    return init(&poly.num[counter], poly.limbNumber - counter);
+    MPN c = init(&poly->num[counter], poly->limbNumber - counter);
+    MP_free(*poly);
+    *poly = c;
 } //end removeLeadingZeroLimbs
 
 /*---------------------------------------------------------------------------*/
@@ -1298,7 +1332,7 @@ bool isZero(MPN poly) {
     }
     return true;
 } // end isZero
-
+//
 /*---------------------------------------------------------------------------*/
 
 void print(char *str, MPN poly) {
@@ -1306,7 +1340,9 @@ void print(char *str, MPN poly) {
     printf("%s ", str);
 
     for (int i = 0; i < poly.limbNumber; ++i) {
-        printf("0x%02lx, ", poly.num[i]);
+//        printf("0x%02lx, ", poly.num[i]);
+        printf("%02lx ", poly.num[i]);
+
     }
 
     printf("\tDegree: %u", degree(poly));
@@ -1316,7 +1352,8 @@ void print(char *str, MPN poly) {
 
 unsigned degree(MPN poly) {
 
-    MPN c = removeLeadingZeroLimbs(copy(poly));
+    MPN c = init(poly.num, poly.limbNumber);
+    removeLeadingZeroLimbs(&c);
 
     if (isZero(c))
         return 0;
@@ -1345,18 +1382,13 @@ unsigned degree(MPN poly) {
 
 /*---------------------------------------------------------------------------*/
 
-MPN copy(MPN poly) {
-    return MP_Addition(init_empty(poly.limbNumber), poly);
-}// end copy
-
-
-/*---------------------------------------------------------------------------*/
-
 //It returns true if a and b represent the same poly
 bool MP_compare(MPN a, MPN b) {
 
-    MPN m1 = removeLeadingZeroLimbs(a);
-    MPN m2 = removeLeadingZeroLimbs(b);
+    MPN m1 = init(a.num, a.limbNumber);
+    removeLeadingZeroLimbs(&m1);
+    MPN m2 = init(b.num, b.limbNumber);
+    removeLeadingZeroLimbs(&m2);
 
     if (m1.limbNumber != m2.limbNumber) {
         MP_free(m1);
