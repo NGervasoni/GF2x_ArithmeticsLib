@@ -191,7 +191,7 @@ void limbShiftLeft(MPN *a, int n) {
 // assumption: m1, m2 are polynomial of degree <= POWER_OF_TWO, irreducible is an
 // irreducible polynomial of degree POWER_OF_TWO+1
 
-void MP_ShiftAndAddMul(MPN *result, MPN m1, MPN m2, MPN irr_poly) {
+void MP_ShiftAndAddMul(MPN *result, MPN factor1, MPN factor2, MPN irr_poly) {
 
     if (irr_poly.limbNumber > T + 1) {
         fprintf(stderr, "Irr poly is too big! Aborting...\n");
@@ -201,8 +201,8 @@ void MP_ShiftAndAddMul(MPN *result, MPN m1, MPN m2, MPN irr_poly) {
     MPN a = init_empty(T), b = init_empty(T), c;
 
 
-    MP_Addition(&a, m1, a);
-    MP_Addition(&b, m2, b);
+    MP_Addition(&a, factor1, a);
+    MP_Addition(&b, factor2, b);
 
 
     unsigned shiftToHigherOne = (LIMB_BITS - S);
@@ -246,21 +246,21 @@ void MP_ShiftAndAddMul(MPN *result, MPN m1, MPN m2, MPN irr_poly) {
 
 //2.34
 //ASSUMPTION: m1, m2 limbNumb max is T
-void MP_CombRtoLMul(MPN *result, MPN m1, MPN m2) {
+void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2) {
 
     MPN b = init_null(), c;
-    MP_Addition(&b, m2, init_empty(m2.limbNumber + 1));
+    MP_Addition(&b, factor2, init_empty(factor2.limbNumber + 1));
     c = init_empty(2 * T);
 
     // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
     for (int k = 0; k < LIMB_BITS; ++k) {
         // j seleziona a ogni ciclo il limb
-        for (int j = m1.limbNumber - 1; j >= 0; --j) {
+        for (int j = factor1.limbNumber - 1; j >= 0; --j) {
             // shift di k posizioni (k=0 => seleziono bit più a destra)
-            if (m1.num[j] >> k & 0x1) { //OKKK!!
+            if (factor1.num[j] >> k & 0x1) { //OKKK!!
 
                 for (int i = 0; i < b.limbNumber; ++i) {
-                    c.num[c.limbNumber - 1 - (m1.limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
+                    c.num[c.limbNumber - 1 - (factor1.limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
                 }
             }
         }
@@ -279,7 +279,7 @@ void MP_CombRtoLMul(MPN *result, MPN m1, MPN m2) {
 /*---------------------------------------------------------------------------*/
 //2.35
 //ASSUMPTION: a, b limbNumb max is T
-void MP_CombLtoRMul(MPN *result, MPN a, MPN b) {
+void MP_CombLtoRMul(MPN *result, MPN factor1, MPN factor2) {
 
     MPN c;
     c = init_empty(2 * T);
@@ -288,14 +288,15 @@ void MP_CombLtoRMul(MPN *result, MPN a, MPN b) {
     for (int k = LIMB_BITS - 1; k >= 0; --k) {
 
         // j seleziona a ogni ciclo il limb
-        for (int j = a.limbNumber - 1; j >= 0; --j) {
+        for (int j = factor1.limbNumber - 1; j >= 0; --j) {
 
             // shift di k posizioni (k=0 => seleziono bit più a destra)
-            if (a.num[j] >> k & 0x1) {
+            if (factor1.num[j] >> k & 0x1) {
 
-                for (int i = 0; i < b.limbNumber; ++i) {
+                for (int i = 0; i < factor2.limbNumber; ++i) {
 
-                    c.num[c.limbNumber - 1 - (a.limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
+                    c.num[c.limbNumber - 1 - (factor1.limbNumber - 1 - j) - i] ^= factor2.num[factor2.limbNumber - 1 -
+                                                                                              i];
 
                 }
             }
@@ -313,7 +314,7 @@ void MP_CombLtoRMul(MPN *result, MPN a, MPN b) {
 
 //ASSUMPTION: a, b limbNumb max is T
 //            w divisore di LIMB_BITS
-void MP_CombLtoRMul_w(MPN *res, MPN a, MPN b, unsigned w) {
+void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN b, unsigned w) {
 
     MPN c;
 
@@ -336,15 +337,15 @@ void MP_CombLtoRMul_w(MPN *res, MPN a, MPN b, unsigned w) {
     // k rappresenta il numero di shift in un limb
     for (int k = (LIMB_BITS / w) - 1; k >= 0; --k) {
         // j seleziona a ogni ciclo il limb
-        for (int j = a.limbNumber - 1; j >= 0; --j) {
+        for (int j = factor1.limbNumber - 1; j >= 0; --j) {
 
 
-            LIMB w_bits_value = ((a.num[j] >> (k * w)) & ((LIMB) pow(2, w) - 1));
+            LIMB w_bits_value = ((factor1.num[j] >> (k * w)) & ((LIMB) pow(2, w) - 1));
 
             MPN bu = b_u[w_bits_value];
 
             for (int i = 0; i < bu.limbNumber; ++i) {
-                c.num[c.limbNumber - 1 - (a.limbNumber - 1 - j) - i] ^= bu.num[bu.limbNumber - 1 - i];
+                c.num[c.limbNumber - 1 - (factor1.limbNumber - 1 - j) - i] ^= bu.num[bu.limbNumber - 1 - i];
             }
 
 
@@ -472,17 +473,17 @@ void MP_KaratsubaMul(MPN *result, MPN factor1, MPN factor2) {
 
 /*---------------------------------------------------------------------------*/
 //2.39
-MPN MP_Squaring(MPN a) {
+MPN MP_Squaring(MPN poly) {
 
     if (!init_precomputed) {
         create_precomputed();
     }
 
-    MPN c = init_empty(2 * a.limbNumber);
+    MPN c = init_empty(2 * poly.limbNumber);
 
-    int n = a.limbNumber;
-    int n1 = sizeof(a.num[0]);
-    uint8_t *a1 = (uint8_t *) a.num;
+    int n = poly.limbNumber;
+    int n1 = sizeof(poly.num[0]);
+    uint8_t *a1 = (uint8_t *) poly.num;
     uint16_t *c1 = (uint16_t *) c.num;
     int k = 0;
 
@@ -515,7 +516,7 @@ MPN MP_Squaring(MPN a) {
 // assumption: a has degree <= 2m-2, irr proper
 // irr(z) = z^m + r(z) where degree of r(z) is <= m-1
 
-void MP_Reduce(MPN *result, MPN a, MPN irr_poly, int powerOfTwo) {
+void MP_Reduce(MPN *result, MPN polyToreduce, MPN irr_poly) {
 
     int block, tot_bits, extra_bits, extra_block;
 
@@ -542,21 +543,21 @@ void MP_Reduce(MPN *result, MPN a, MPN irr_poly, int powerOfTwo) {
         MP_bitShiftLeft(&r, 1);
     }
 
-    tot_bits = (LIMB_BITS * a.limbNumber); //number of bitsToShift in a
+    tot_bits = (LIMB_BITS * polyToreduce.limbNumber); //number of bitsToShift in polyToreduce
 
-    for (int l = tot_bits - 1; l >= powerOfTwo; l--) {
+    for (int l = tot_bits - 1; l >= POWER_OF_TWO; l--) {
 
         block = (tot_bits - 1 - l) / LIMB_BITS;
 
-        if (a.num[block] >> (LIMB_BITS * (1 + block) - 1 - (tot_bits - 1 - l)) & 1) {
+        if (polyToreduce.num[block] >> (LIMB_BITS * (1 + block) - 1 - (tot_bits - 1 - l)) & 1) {
 
-            int j = (l - powerOfTwo) / LIMB_BITS;
-            int k = (l - powerOfTwo) - LIMB_BITS * j;
+            int j = (l - POWER_OF_TWO) / LIMB_BITS;
+            int k = (l - POWER_OF_TWO) - LIMB_BITS * j;
 
             MPN u_k = u[k];
 
             for (int i = 0; i < u_k.limbNumber; ++i) {
-                a.num[a.limbNumber - 1 - j - i] ^= u_k.num[u_k.limbNumber - 1 - i];
+                polyToreduce.num[polyToreduce.limbNumber - 1 - j - i] ^= u_k.num[u_k.limbNumber - 1 - i];
             }
         }
     }
@@ -567,9 +568,9 @@ void MP_Reduce(MPN *result, MPN a, MPN irr_poly, int powerOfTwo) {
 
     for (int m = T - 1; m >= 0; m--) {
         if (m == 0) {
-            c.num[0] = a.num[a.limbNumber - 1 - (T - 1 - m)] & mask;
+            c.num[0] = polyToreduce.num[polyToreduce.limbNumber - 1 - (T - 1 - m)] & mask;
         } else
-            c.num[m] = a.num[a.limbNumber - 1 - (T - 1 - m)];
+            c.num[m] = polyToreduce.num[polyToreduce.limbNumber - 1 - (T - 1 - m)];
 
     }
 
@@ -799,9 +800,9 @@ void MP_exactDivXtwoPlusXFour(MPN poly) {
 
 /*---------------------------------------------------------------------------*/
 
-void MP_Toom3(MPN *result, MPN a, MPN b) {
+void MP_Toom3(MPN *result, MPN factor1, MPN factor2) {
 
-    MPN u = init(a.num, a.limbNumber), v = init(b.num, b.limbNumber);
+    MPN u = init(factor1.num, factor1.limbNumber), v = init(factor2.num, factor2.limbNumber);
 
 
     if (u.limbNumber < 3 && v.limbNumber < 3) {
@@ -976,16 +977,16 @@ void MP_Toom3(MPN *result, MPN a, MPN b) {
 
 /*---------------------------------------------------------------------------*/
 
-void MP_Toom4(MPN *result, MPN a, MPN b) {
+void MP_Toom4(MPN *result, MPN factor1, MPN factor2) {
 
-    if (a.limbNumber < 4 && b.limbNumber < 4) {
-        MP_CombRtoLMul(result, a, b);
+    if (factor1.limbNumber < 4 && factor2.limbNumber < 4) {
+        MP_CombRtoLMul(result, factor1, factor2);
         return;
     }
 
 
-    MPN u = init(a.num, a.limbNumber);
-    MPN v = init(b.num, b.limbNumber);
+    MPN u = init(factor1.num, factor1.limbNumber);
+    MPN v = init(factor2.num, factor2.limbNumber);
 
 
     MPN u3, u2, u1, u0, v3, v2, v1, v0, w = init_null(), w0 = init_null(), w1 = init_null(),
@@ -1288,9 +1289,9 @@ void MP_Toom4(MPN *result, MPN a, MPN b) {
 
 /*---------------------------------------------------------------------------*/
 
-bool isOne(MPN mp) {
+bool isOne(MPN poly) {
 
-    MPN x_mp = init(mp.num, mp.limbNumber);
+    MPN x_mp = init(poly.num, poly.limbNumber);
     removeLeadingZeroLimbs(&x_mp);
 
     if (x_mp.limbNumber == 1 && x_mp.num[0] == 1) {

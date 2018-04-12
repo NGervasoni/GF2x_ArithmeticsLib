@@ -56,24 +56,23 @@ bool isZero(MPN poly);
 void MP_Addition(MPN *result, MPN a, MPN b);
 
 
-void MP_ShiftAndAddMul(MPN *result, MPN m1, MPN m2, MPN irr_poly);
+void MP_ShiftAndAddMul(MPN *result, MPN factor1, MPN factor2, MPN irr_poly);
 
-void MP_CombRtoLMul(MPN *result, MPN m1, MPN m2);
+void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2);
 
-void MP_CombLtoRMul(MPN *result, MPN a, MPN b);
+void MP_CombLtoRMul(MPN *result, MPN factor1, MPN factor2);
 
-void MP_CombLtoRMul_w(MPN *res, MPN a, MPN b, unsigned w);
+void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w);
 
 void MP_KaratsubaMul(MPN *result, MPN factor1, MPN factor2);
 
-void MP_Toom3(MPN *result, MPN u, MPN v);
+void MP_Toom3(MPN *result, MPN factor1, MPN factor2);
 
-void MP_Toom4(MPN *result, MPN a, MPN b);
+void MP_Toom4(MPN *result, MPN factor1, MPN factor2);
 
+MPN MP_Squaring(MPN poly);
 
-MPN MP_Squaring(MPN a);
-
-void MP_Reduce(MPN *result, MPN a, MPN irr_poly, int powerOfTwo);
+void MP_Reduce(MPN *result, MPN polyToreduce, MPN irr_poly, int powerOfTwo);
 
 MPN MP_Inversion_EE(MPN a, MPN irr_poly);
 
@@ -91,7 +90,7 @@ void MP_exactDivXtwoPlusXFour(MPN poly);
 
 unsigned degree(MPN poly);
 
-bool isOne(MPN mp);
+bool isOne(MPN poly);
 
 bool MP_compare(MPN a, MPN b);
 
