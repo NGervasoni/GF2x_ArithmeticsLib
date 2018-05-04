@@ -1,3 +1,4 @@
+
 #ifndef GF2X_ARITHMETICSLIB_LIBRARY_H
 #define GF2X_ARITHMETICSLIB_LIBRARY_H
 
@@ -15,7 +16,7 @@
 
 #define LIMB uint64_t
 
-#define POWER_OF_TWO 204800 //m : maximum degree
+#define POWER_OF_TWO 12800000//100 000limb64 //m : maximum degree
 
 #define LIMB_BITS (sizeof(LIMB) * 8) // W
 
@@ -42,7 +43,7 @@ void MP_free(MPN poly);
 
 void print(char *str, MPN poly);
 
-void MP_bitShiftLeft(MPN *a, int bitsToShift);
+inline void MP_bitShiftLeft(MPN *a, int bitsToShift);
 
 void MP_bitShiftRight(MPN *a);
 
@@ -72,7 +73,7 @@ void MP_Toom4(MPN *result, MPN factor1, MPN factor2);
 
 MPN MP_Squaring(MPN poly);
 
-void MP_Reduce(MPN *result, MPN polyToreduce, MPN irr_poly, int powerOfTwo);
+void MP_Reduce(MPN *result, MPN polyToreduce, MPN irr_poly);
 
 MPN MP_Inversion_EE(MPN a, MPN irr_poly);
 

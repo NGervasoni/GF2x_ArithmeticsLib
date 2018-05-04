@@ -97,7 +97,7 @@ void main(int argc, char *argv[]) {
 //        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &requestEnd);
 //        time = diff(requestStart, requestEnd);
 //        accum = time.tv_nsec + time.tv_sec;
-//        accum /= BILLION;
+//        //////accum /= BILLION;
 ////        printf("\nMP_ShiftAndAddMul:\t%lf\n", accum);
 //        printf("\t%lf", accum);
 //        setResultArray(result);
@@ -109,7 +109,7 @@ void main(int argc, char *argv[]) {
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &requestEnd);
     time = diff(requestStart, requestEnd);
     accum = time.tv_nsec + time.tv_sec;
-    accum /= BILLION;
+    //////accum /= BILLION;
 //        printf("\nMP_CombRtoLMul:\t\t%lf\n", accum);
     printf("\t%lf", accum);
 
@@ -123,7 +123,7 @@ void main(int argc, char *argv[]) {
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &requestEnd);
     time = diff(requestStart, requestEnd);
     accum = time.tv_nsec + time.tv_sec;
-    accum /= BILLION;
+    //////accum /= BILLION;
 //        printf("\nMP_CombLtoRMul:\t\t%lf\n", accum);
     printf("\t%lf", accum);
 
@@ -138,7 +138,7 @@ void main(int argc, char *argv[]) {
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &requestEnd);
     time = diff(requestStart, requestEnd);
     accum = time.tv_nsec + time.tv_sec;
-    accum /= BILLION;
+    ////////accum /= BILLION;
 //        printf("\nMP_CombLtoRMul_w:\t%lf\n", accum);
     printf("\t%lf", accum);
 
@@ -153,7 +153,7 @@ void main(int argc, char *argv[]) {
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &requestEnd);
     time = diff(requestStart, requestEnd);
     accum = time.tv_nsec + time.tv_sec;
-    accum /= BILLION;
+    //////accum /= BILLION;
 //        printf("\nMP_KaratsubaMul:\t%lf\n", accum);
     printf("\t%lf", accum);
 //
@@ -168,7 +168,7 @@ void main(int argc, char *argv[]) {
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &requestEnd);
     time = diff(requestStart, requestEnd);
     accum = time.tv_nsec + time.tv_sec;
-    accum /= BILLION;
+    //////accum /= BILLION;
 //        printf("\nMP_Toom3:\t\t\t%lf\n", accum);
     printf("\t%lf", accum);
 
@@ -182,7 +182,7 @@ void main(int argc, char *argv[]) {
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &requestEnd);
     time = diff(requestStart, requestEnd);
     accum = time.tv_nsec + time.tv_sec;
-    accum /= BILLION;
+    //////accum /= BILLION;
 //        printf("\nMP_Toom4:\t\t\t%lf\n", accum);
     printf("\t%lf", accum);
 

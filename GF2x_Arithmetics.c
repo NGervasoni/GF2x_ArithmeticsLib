@@ -1,3 +1,5 @@
+
+#include <assert.h>
 #include "GF2x_Arithmetics.h"
 
 uint16_t precomputed[256];
@@ -105,44 +107,37 @@ void MP_Addition(MPN *result, MPN a, MPN b) {
 
 /*---------------------------------------------------------------------------*/
 
-void MP_bitShiftLeft(MPN *a, int bitsToShift) {
+inline void MP_bitShiftLeft(MPN *a, const int bitsToShift) {
+
 
     if (bitsToShift == 0) {
         return;
     }
 
-    uint8_t this_carry, prev_carry;
-    prev_carry = 0;
+    if (a->limbNumber == 0) return;
 
+    assert(bitsToShift < LIMB_BITS);
 
     if (a->num[0] >> LIMB_BITS - 1) { // checks if first limb bit is 1
 
         MPN c = init_empty(a->limbNumber + 1);
         MP_Addition(a, *a, c);
 
-//        a->num = &(MP_Addition(*a, c).num[0]);
-
-//        a->limbNumber = c.limbNumber;
         MP_free(c);
     }
 
-    for (int i = (a->limbNumber - 1); i >= 0; --i) {
 
-        if (a->num[i] >> LIMB_BITS - 1) // checks if first limb bit is 1
-            this_carry = 1;
-        else
-            this_carry = 0;
+    int j;
+    LIMB mask;
+    mask = ~(((LIMB) 0x01 << (LIMB_BITS - bitsToShift)) - 1);
 
-        a->num[i] = a->num[i] << 1;
-        if (i != (a->limbNumber - 1))
-            a->num[i] = a->num[i] ^ prev_carry;
-        prev_carry = this_carry;
-
+    for (j = 0; j < a->limbNumber - 1; j++) {
+        a->num[j] <<= bitsToShift;
+        a->num[j] |= (a->num[j + 1] & mask) >> (LIMB_BITS - bitsToShift);
     }
+    a->num[j] <<= bitsToShift;
+}
 
-    MP_bitShiftLeft(a, bitsToShift - 1);
-
-}// end MP_bitShiftLeft
 
 /*---------------------------------------------------------------------------*/
 
@@ -828,7 +823,7 @@ void MP_Toom3(MPN *result, MPN factor1, MPN factor2) {
 
     unsigned u_limbs_div3 = u.limbNumber / 3;
     int bih;
-
+//limbNumber multiplo di 3
     if (u_limbs_div3 * 3 == u.limbNumber) {
         u2 = init(&(u.num[0]), u_limbs_div3);
         u1 = init(&(u.num[u_limbs_div3]), u_limbs_div3);
@@ -1345,15 +1340,20 @@ void print(char *str, MPN poly) {
         printf("%02lx ", poly.num[i]);
 
     }
-
+//    MPN new_poly = init(poly.num, poly.limbNumber);
     printf("\tDegree: %u", degree(poly));
+//    MP_free(new_poly);
 } // end print
 
 /*---------------------------------------------------------------------------*/
 
 unsigned degree(MPN poly) {
 
-    MPN c = init(poly.num, poly.limbNumber);
+//    MPN c = init(poly.num, poly.limbNumber);
+    LIMB zero_limb[] = {0};
+    MPN zero = init(zero_limb, 1);
+    MPN c = init_null();
+    MP_Addition(&c, poly, zero);
     removeLeadingZeroLimbs(&c);
 
     if (isZero(c))
