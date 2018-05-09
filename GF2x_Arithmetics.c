@@ -160,7 +160,7 @@ void MP_bitShiftLeft(MPN *a, const int bitsToShift) {
     assert(bitsToShift < LIMB_BITS);
     int leading_zeros = 0;
 
-    for (int i = LIMB_BITS - 1; i >= 0; i--) {
+    for (int i = LIMB_BITS - 1; i >= LIMB_BITS - bitsToShift; i--) {
 
         if (a->num[0] >> i & 1) { //cerca posizione primo bit
             break;
