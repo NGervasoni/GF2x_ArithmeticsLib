@@ -74,10 +74,10 @@ void MP_free(MPN poly) {
 
 void MP_Addition(MPN *result, MPN a, MPN b) {
 
-    if (!properSize(a) || !properSize(b)) {
-        fprintf(stderr, "Wrong polynomial dimension! Aborting...\n");
-        exit(EXIT_FAILURE);
-    }
+//    if (!properSize(a) || !properSize(b)) {
+//        fprintf(stderr, "Wrong polynomial dimension! Aborting...\n");
+//        exit(EXIT_FAILURE);
+//    }
 
     unsigned maxLength, minLength;
     LIMB *ptrMax, *ptrMin;
@@ -107,7 +107,48 @@ void MP_Addition(MPN *result, MPN a, MPN b) {
 
 /*---------------------------------------------------------------------------*/
 
-inline void MP_bitShiftLeft(MPN *a, const int bitsToShift) {
+//void MP_bitShiftLeft(MPN *a, int bitsToShift) {
+//
+//    if (bitsToShift == 0) {
+//        return;
+//    }
+//
+//    uint8_t this_carry, prev_carry;
+//    prev_carry = 0;
+//
+//
+//    if (a->num[0] >> LIMB_BITS - 1) { // checks if first limb bit is 1
+//
+//        MPN c = init_empty(a->limbNumber + 1);
+//        MP_Addition(a, *a, c);
+//
+////        a->num = &(MP_Addition(*a, c).num[0]);
+//
+////        a->limbNumber = c.limbNumber;
+//        MP_free(c);
+//    }
+//
+//    for (int i = (a->limbNumber - 1); i >= 0; --i) {
+//
+//        if (a->num[i] >> LIMB_BITS - 1) // checks if first limb bit is 1
+//            this_carry = 1;
+//        else
+//            this_carry = 0;
+//
+//        a->num[i] = a->num[i] << 1;
+//        if (i != (a->limbNumber - 1))
+//            a->num[i] = a->num[i] ^ prev_carry;
+//        prev_carry = this_carry;
+//
+//    }
+//
+//    MP_bitShiftLeft(a, bitsToShift - 1);
+//
+//}// end MP_bitShiftLeft
+
+
+
+void MP_bitShiftLeft(MPN *a, const int bitsToShift) {
 
 
     if (bitsToShift == 0) {
@@ -117,8 +158,20 @@ inline void MP_bitShiftLeft(MPN *a, const int bitsToShift) {
     if (a->limbNumber == 0) return;
 
     assert(bitsToShift < LIMB_BITS);
+    int leading_zeros = 0;
 
-    if (a->num[0] >> LIMB_BITS - 1) { // checks if first limb bit is 1
+    for (int i = LIMB_BITS - 1; i >= 0; i--) {
+
+        if (a->num[0] >> i & 1) { //cerca posizione primo bit
+            break;
+
+        } else {
+            leading_zeros++;
+        }
+    }
+
+
+    if (leading_zeros < bitsToShift) { // checks if first limb bit is 1
 
         MPN c = init_empty(a->limbNumber + 1);
         MP_Addition(a, *a, c);
@@ -137,7 +190,6 @@ inline void MP_bitShiftLeft(MPN *a, const int bitsToShift) {
     }
     a->num[j] <<= bitsToShift;
 }
-
 
 /*---------------------------------------------------------------------------*/
 
@@ -823,7 +875,7 @@ void MP_Toom3(MPN *result, MPN factor1, MPN factor2) {
 
     unsigned u_limbs_div3 = u.limbNumber / 3;
     int bih;
-//limbNumber multiplo di 3
+
     if (u_limbs_div3 * 3 == u.limbNumber) {
         u2 = init(&(u.num[0]), u_limbs_div3);
         u1 = init(&(u.num[u_limbs_div3]), u_limbs_div3);
@@ -1068,178 +1120,339 @@ void MP_Toom4(MPN *result, MPN factor1, MPN factor2) {
 
     //EVALUATION
     MP_Addition(&w1, u1, u0);
+    T4(("\nw1 ", w1));
     MP_Addition(&w1, u2, w1);
+    T4(("\nw1 ", w1));
     MP_Addition(&w1, u3, w1);
+    T4(("\nw1 ", w1));
 
     MP_Addition(&w2, v1, v0);
+    T4(("\nw2 ", w2));
     MP_Addition(&w2, v2, w2);
+    T4(("\nw2 ", w2));
     MP_Addition(&w2, v3, w2);
+    T4(("\nw2 ", w2));
 
     MP_Toom4(&w3, w1, w2);
+    T4(("\nw3 ", w3));
+
 
     MPN temp = init(u3.num, u3.limbNumber); //per 0x2
+
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
+
     MP_Addition(&temp, u2, temp);
+    T4(("\ntemp ", temp));
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
     MP_Addition(&w0, u1, temp);
+    T4(("\nw0 ", w0));
 
     MP_free(temp);
     temp = init(v3.num, v3.limbNumber); //per 0x2
+
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
+
     MP_Addition(&temp, v2, temp);
+    T4(("\ntemp ", temp));
+
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w6, v1, temp);
+    T4(("\nw6 ", w6));
+
 
     MP_Toom4(&temp, u3, xpiuuno);
+    T4(("\ntemp ", temp));
     MP_Addition(&temp, w0, temp);
+    T4(("\ntemp ", temp));
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w4, w1, temp);
+    T4(("\nw4 ", w4));
+
 
     MP_Toom4(&temp, v3, xpiuuno);
+    T4(("\ntemp ", temp));
     MP_Addition(&temp, w6, temp);
+    T4(("\ntemp ", temp));
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w5, temp, w2);
+    T4(("\nw5 ", w5));
+
 
     MP_bitShiftLeft(&w0, 1);
+    T4(("\nw0 ", w0));
+
+
     MP_Addition(&w0, u0, w0);
+    T4(("\nw0 ", w0));
 
     MP_bitShiftLeft(&w6, 1);
+    T4(("\nw6 ", w6));
+
     MP_Addition(&w6, v0, w6);
+    T4(("\nw6 ", w6));
 
     MP_Toom4(&w5, w5, w4);
+    T4(("\nw5 ", w5));
+
+
     MP_Toom4(&w4, w6, w0);
+    T4(("\nw4 ", w4));
 
     MP_free(temp);
     temp = init(u2.num, u2.limbNumber);
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
     MPN temp1;
     temp1 = init(u1.num, u1.limbNumber);
     MP_bitShiftLeft(&temp1, 2);
+    T4(("\ntemp1 ", temp1));
+
     MP_Addition(&w0, temp, temp1);
+    T4(("\nw0 ", w0));
     MP_free(temp);
     temp = init(u0.num, u0.limbNumber);
     MP_bitShiftLeft(&temp, 3); //per x^3
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w0, temp, w0);
+    T4(("\nw0 ", w0));
 
     MP_free(temp);
     temp = init(v2.num, v2.limbNumber);
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
     temp1 = init(v1.num, v1.limbNumber);
     MP_bitShiftLeft(&temp1, 2);
+    T4(("\ntemp1 ", temp1));
+
     MP_Addition(&w6, temp, temp1);
+    T4(("\nw6 ", w6));
+
     MP_free(temp);
     temp = init(v0.num, v0.limbNumber);
     MP_bitShiftLeft(&temp, 3); //per x^3
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w6, temp, w6);
+    T4(("\nw6 ", w6));
+
 
     MP_Addition(&w1, w0, w1);
+    T4(("\nw1 ", w1));
 
     MP_free(temp);
     temp = init(u0.num, u0.limbNumber);
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w1, temp, w1); // w1 + u0*x
+    T4(("\nw1 ", w1));
+
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w1, w1, temp); // w1 + u0*x^2
+    T4(("\nw1 ", w1));
 
     MP_Addition(&w2, w6, w2);
+    T4(("\nw2 ", w2));
+
     MP_free(temp);
     temp = init(v0.num, v0.limbNumber);
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w2, temp, w2); // w2 + u0*x
+    T4(("\nw2 ", w2));
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w2, temp, w2); // w2 + u0*x^2
+    T4(("\nw2 ", w2));
 
     MP_Addition(&w0, u3, w0);
+    T4(("\nw0 ", w0));
 
     MP_Addition(&w6, v3, w6);
+    T4(("\nw6 ", w6));
 
     MP_Toom4(&w1, w1, w2);
+    T4(("\nw1 ", w1));
 
     MP_Toom4(&w2, w0, w6);
+    T4(("\nw2 ", w2));
 
     MP_Toom4(&w6, u3, v3);
+    T4(("\nw6 ", w6));
 
     MP_Toom4(&w0, u0, v0);
+    T4(("\nw0 ", w0));
 
-
+    PRINTF(("\nINTERPOLATION"));
     //INTERPOLATION
 
     MP_Addition(&w1, w2, w1);
+    T4(("\nw1 ", w1));
     MP_Addition(&w1, w0, w1); //+w0
+    T4(("\nw1 ", w1));
     MP_free(temp);
     temp = init(w0.num, w0.limbNumber);
     MP_bitShiftLeft(&temp, 2); //+w0*x^2
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w1, temp, w1);
+    T4(("\nw1 ", w1));
     MP_bitShiftLeft(&temp, 2);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w1, temp, w1); //+w0*x^4
+    T4(("\nw1 ", w1));
 
     MP_Addition(&w5, w4, w5);
+    T4(("\nw5 ", w5));
     MP_Addition(&w5, w6, w5);
+    T4(("\nw5 ", w5));
     MP_free(temp);
     temp = init(w6.num, w6.limbNumber);
     MP_bitShiftLeft(&temp, 2);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w5, w5, temp);
+    T4(("\nw5 ", w5));
     MP_bitShiftLeft(&temp, 2);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w5, w5, temp);
+    T4(("\nw5 ", w5));
     MP_Addition(&w5, w5, w1);
+    T4(("\nw5 ", w5));
     MP_exactDivXPlusXFour(w5);
+    T4(("\nw5 ", w5));
 
     MP_Addition(&w2, w2, w6);
+    T4(("\nw2 ", w2));
     MP_free(temp);
     temp = init(w0.num, w0.limbNumber);
+    //****************************
+
     MP_bitShiftLeft(&temp, 6);
+    T4(("\ntemp ", temp));
+    //****************************
+
     MP_Addition(&w2, temp, w2);
+    T4(("\nw2 ", w2));
 
     MP_Addition(&temp, w2, w0);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w4, w4, temp);
+    T4(("\nw4 ", w4));
     MP_free(temp);
     temp = init(w6.num, w6.limbNumber);
     MP_bitShiftLeft(&temp, 6);
+    T4(("\ntemp ", temp));
+
+
     MP_Addition(&w4, w4, temp);
+    T4(("\nw4 ", w4));
 
     MP_free(temp);
     temp = init(w5.num, w5.limbNumber);
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w4, w4, temp); //w4 + w5*x
+    T4(("\nw4 ", w4));
+
     MP_bitShiftLeft(&temp, 4); //w5*x^5
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w4, w4, temp); //w4 + w5*x
+    T4(("\nw4 ", w4));
+
+
     MP_exactDivXtwoPlusXFour(w4);
+    T4(("\nw4 ", w4));
 
     MP_Addition(&temp, w0, w6);
+    T4(("\ntemp ", temp));
     MP_Addition(&w3, w3, temp);
+    T4(("\nw3 ", w3));
 
     MP_Addition(&w1, w1, w3);
+    T4(("\nw1 ", w1));
 
     MP_free(temp);
     temp = init(w1.num, w1.limbNumber);
     MP_bitShiftLeft(&temp, 1);
+    T4(("\ntemp ", temp));
+
     temp1 = init(w3.num, w3.limbNumber);
     MP_bitShiftLeft(&temp1, 2);
+    T4(("\ntemp1 ", temp1));
+
     MP_Addition(&temp, temp, temp1);
+    T4(("\ntemp ", temp));
     MP_Addition(&w2, w2, temp);
+    T4(("\nw2 ", w2));
+
 
     MP_Addition(&temp, w4, w5);
+    T4(("\ntemp ", temp));
+
+
     MP_Addition(&w3, w3, temp);
+    T4(("\nw3 ", w3));
+
 
     MP_free(temp);
     temp = init(w3.num, w3.limbNumber);
+
     MP_bitShiftLeft(&temp, 1); //w3*x
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w1, w1, temp); //w1 + w3*x
+    T4(("\nw1 ", w1));
     MP_bitShiftLeft(&temp, 1); //w3*x^2
+
     MP_Addition(&w1, w1, temp); //w1 + w3*x^2
+    T4(("\nw1 ", w1));
     MP_exactDivXPlusXFour(w1);
+    T4(("\nw1 ", w1));
 
     MP_Addition(&w5, w5, w1);
+    T4(("\nw5 ", w5));
 
     MP_free(temp);
     temp = init(w5.num, w5.limbNumber);
     MP_bitShiftLeft(&temp, 1); //w5*x
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w2, temp, w2);
+    T4(("\nw2 ", w2));
     MP_bitShiftLeft(&temp, 1); //w5*x^2
+    T4(("\ntemp ", temp));
+
     MP_Addition(&w2, temp, w2);
+    T4(("\nw2 ", w2));
     MP_exactDivXtwoPlusXFour(w2);
+    T4(("\nw2 ", w2));
 
     MP_Addition(&w4, w2, w4);
+    T4(("\nw4 ", w4));
 
     limbShiftLeft(&w1, 1 * bih);
     MP_Addition(&w, w0, w1);
@@ -1340,20 +1553,15 @@ void print(char *str, MPN poly) {
         printf("%02lx ", poly.num[i]);
 
     }
-//    MPN new_poly = init(poly.num, poly.limbNumber);
+
     printf("\tDegree: %u", degree(poly));
-//    MP_free(new_poly);
 } // end print
 
 /*---------------------------------------------------------------------------*/
 
 unsigned degree(MPN poly) {
 
-//    MPN c = init(poly.num, poly.limbNumber);
-    LIMB zero_limb[] = {0};
-    MPN zero = init(zero_limb, 1);
-    MPN c = init_null();
-    MP_Addition(&c, poly, zero);
+    MPN c = init(poly.num, poly.limbNumber);
     removeLeadingZeroLimbs(&c);
 
     if (isZero(c))

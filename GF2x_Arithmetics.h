@@ -10,13 +10,25 @@
 #include <stdbool.h>
 #include <stdint-gcc.h>
 
+
+//#define PRGDEBUG
+
+#ifdef PRGDEBUG
+#define PRINTF(x) printf x
+#define PRINT(x) print x
+#define T4(x) print x
+#else
+#define PRINTF(x) /*nothing*/
+#define PRINT(x)
+#define T4(x)
+#endif
 /*---------------------------------------------------------------------------*/
 
 // definire ogni volta il campo su cui si lavora
 
 #define LIMB uint64_t
 
-#define POWER_OF_TWO 12800000//100 000limb64 //m : maximum degree
+#define POWER_OF_TWO 5000 //12800000//100 000limb64 //m : maximum degree
 
 #define LIMB_BITS (sizeof(LIMB) * 8) // W
 
@@ -43,7 +55,7 @@ void MP_free(MPN poly);
 
 void print(char *str, MPN poly);
 
-inline void MP_bitShiftLeft(MPN *a, int bitsToShift);
+void MP_bitShiftLeft(MPN *a, int bitsToShift);
 
 void MP_bitShiftRight(MPN *a);
 
