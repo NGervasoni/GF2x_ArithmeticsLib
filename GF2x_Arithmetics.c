@@ -71,6 +71,7 @@ void MP_free(MPN poly) {
 /*---------------------------------------------------------------------------*/
 // 2.32
 //a, b are polynomial of degree <= POWER_OF_TWO, *res points to an INITIALIZED MPN where the c will be stored
+//todo infila casi nell'if, via i pnt
 
 void MP_Addition(MPN *result, MPN a, MPN b) {
 
@@ -79,27 +80,28 @@ void MP_Addition(MPN *result, MPN a, MPN b) {
 //        exit(EXIT_FAILURE);
 //    }
 
-    unsigned maxLength, minLength;
-    LIMB *ptrMax, *ptrMin;
-    if (a.limbNumber > b.limbNumber) {
-        maxLength = a.limbNumber;
-        minLength = b.limbNumber;
-        ptrMax = a.num;
-        ptrMin = b.num;
-    } else {
-        maxLength = b.limbNumber;
-        minLength = a.limbNumber;
-        ptrMax = b.num;
-        ptrMin = a.num;
-    }
-    MPN c = init_empty(maxLength);
+    MPN c;
 
-    for (int i = 0; i < minLength; i++) {
-        c.num[maxLength - minLength + i] = ptrMax[maxLength - minLength + i] ^ ptrMin[i];
+    if (a.limbNumber > b.limbNumber) {
+        c = init_empty(a.limbNumber);
+
+        for (int i = 0; i < b.limbNumber; i++) {
+            c.num[a.limbNumber - b.limbNumber + i] = a.num[a.limbNumber - b.limbNumber + i] ^ b.num[i];
+        }
+        for (int i = 0; i < a.limbNumber - b.limbNumber; i++) {
+            c.num[i] = a.num[i];
+        }
+    } else {
+        c = init_empty(b.limbNumber);
+        for (int i = 0; i < a.limbNumber; i++) {
+            c.num[b.limbNumber - a.limbNumber + i] = b.num[b.limbNumber - a.limbNumber + i] ^ a.num[i];
+        }
+        for (int i = 0; i < b.limbNumber - a.limbNumber; i++) {
+            c.num[i] = b.num[i];
+        }
+
     }
-    for (int i = 0; i < maxLength - minLength; i++) {
-        c.num[i] = ptrMax[i];
-    }
+
     MP_free(*result);
     *result = c;
 
