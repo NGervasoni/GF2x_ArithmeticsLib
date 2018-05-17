@@ -338,8 +338,8 @@ void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2) {
 void MP_CombLtoRMul(MPN *result, MPN factor1, MPN factor2) {
 
     MPN c;
-    c = init_empty(2 * T);
-
+//    c = init_empty(2 * T);
+    ALLOCA_EMPTY(c, (2 * T));
     // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
     for (int k = LIMB_BITS - 1; k >= 0; --k) {
 
@@ -358,10 +358,11 @@ void MP_CombLtoRMul(MPN *result, MPN factor1, MPN factor2) {
             }
         }
         if (k != 0)
-            MP_bitShiftLeft(&c, 1);
+            MP_bitShiftLeft(&c, 1); //non sfora mai
     }
     MP_free(*result);
-    *result = c;
+    *result = init(c.num, c.limbNumber);
+
 
 } // end MP_CombLtoRMul
 
