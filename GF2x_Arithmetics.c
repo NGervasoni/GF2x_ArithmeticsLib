@@ -248,11 +248,14 @@ void MP_ShiftAndAddMul(MPN *result, MPN factor1, MPN factor2, MPN irr_poly) {
         exit(EXIT_FAILURE);
     }
 
-    MPN a = init_empty(T), b = init_empty(T), c;
+
+    MPN a, b, c;
+    ALLOCA_EMPTY(a, T);
+    ALLOCA_EMPTY(b, T);
 
 
-    MP_Addition(&a, factor1, a);
-    MP_Addition(&b, factor2, b);
+    SUM_IN_FIRSTARG(a, factor1);
+    SUM_IN_FIRSTARG(b, factor2);
 
 
     unsigned shiftToHigherOne = (LIMB_BITS - S);
@@ -267,28 +270,25 @@ void MP_ShiftAndAddMul(MPN *result, MPN factor1, MPN factor2, MPN irr_poly) {
 // initial setting of c
             if (i == (int) (irr_poly.limbNumber - 1) && j == 0) {
                 if (a.num[a.limbNumber - 1] & 0x1) {
-                    c = init(b.num, irr_poly.limbNumber);
+                    ALLOCA(c, b.num, irr_poly.limbNumber); //c = init(b.num, irr_poly.limbNumber);
                 } else {
-                    c = init_empty(irr_poly.limbNumber);
+                    ALLOCA_EMPTY(c, irr_poly.limbNumber); //c = init_empty(irr_poly.limbNumber);
                 }
 
             } else {
 
                 MP_bitShiftLeft(&b, 1);
                 if (b.num[0] >> shiftToHigherOne) {
-                    MP_Addition(&b, b, irr_poly);
+                    SUM_IN_FIRSTARG(b, irr_poly);//MP_Addition(&b, b, irr_poly);
                 }
-                if ((a.num[i] >> j) & 0x1)
-                    MP_Addition(&c, c, b);
+                if ((a.num[i] >> j) & 0x1) SUM_IN_FIRSTARG(c, b); //MP_Addition(&c, c, b);
             }
 
         }
     }
 
-    MP_free(a);
-    MP_free(b);
     MP_free(*result);
-    *result = c;
+    *result = init(c.num, c.limbNumber);
 
 }// end MP_ShiftAndAddMul
 
