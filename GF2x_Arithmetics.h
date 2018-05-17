@@ -22,6 +22,23 @@
 #define PRINT(x)
 #define T4(x)
 #endif
+
+#define SUM_IN_FIRSTARG(a, b) { for (int i = 0; i < b.limbNumber; i++) { \
+                                    a.num[a.limbNumber - b.limbNumber + i] = a.num[a.limbNumber - b.limbNumber + i] ^ b.num[i]; \
+                                    }}
+
+
+#define ALLOCA_EMPTY(poly, size) {  poly.num = (LIMB *) alloca(size * sizeof(LIMB)); \
+                                    poly.limbNumber = size; \
+                                    memset(poly.num,0,size * sizeof(LIMB));\
+                                    }
+
+#define ALLOCA(poly, limb_pnt, size) {poly.num = (LIMB *) alloca(size * sizeof(LIMB)); \
+                                    poly.limbNumber = size; \
+                                    memcpy(poly.num, limb_pnt, size * sizeof(LIMB)); \
+}
+
+
 /*---------------------------------------------------------------------------*/
 
 // definire ogni volta il campo su cui si lavora
@@ -38,7 +55,7 @@
 
 
 typedef struct gf2x_mp_t {  // to be though in big-endian notation: num[0] stores the most significant bit
-    LIMB *num;
+    LIMB *restrict num; //fixme check
     unsigned limbNumber;
 } MPN;
 
@@ -90,7 +107,6 @@ void MP_Reduce(MPN *result, MPN polyToreduce, MPN irr_poly);
 MPN MP_Inversion_EE(MPN a, MPN irr_poly);
 
 MPN MP_Division_Bin_Inv(MPN a, MPN b, MPN irr_poly);
-
 
 
 void MP_exactDivOnePlusX(MPN poly);

@@ -75,15 +75,15 @@ void MP_free(MPN poly) {
 
 void MP_Addition(MPN *result, MPN a, MPN b) {
 
+
 //    if (!properSize(a) || !properSize(b)) {
 //        fprintf(stderr, "Wrong polynomial dimension! Aborting...\n");
 //        exit(EXIT_FAILURE);
 //    }
-
     MPN c;
 
     if (a.limbNumber > b.limbNumber) {
-        c = init_empty(a.limbNumber);
+        ALLOCA_EMPTY(c, a.limbNumber); //c = init_empty(a.limbNumber);
 
         for (int i = 0; i < b.limbNumber; i++) {
             c.num[a.limbNumber - b.limbNumber + i] = a.num[a.limbNumber - b.limbNumber + i] ^ b.num[i];
@@ -92,7 +92,7 @@ void MP_Addition(MPN *result, MPN a, MPN b) {
             c.num[i] = a.num[i];
         }
     } else {
-        c = init_empty(b.limbNumber);
+        ALLOCA_EMPTY(c, b.limbNumber); //c = init_empty(b.limbNumber);
         for (int i = 0; i < a.limbNumber; i++) {
             c.num[b.limbNumber - a.limbNumber + i] = b.num[b.limbNumber - a.limbNumber + i] ^ a.num[i];
         }
@@ -102,8 +102,9 @@ void MP_Addition(MPN *result, MPN a, MPN b) {
 
     }
 
+
     MP_free(*result);
-    *result = c;
+    *result = init(c.num, c.limbNumber);
 
 }// end MP_addition
 
@@ -176,7 +177,7 @@ void MP_bitShiftLeft(MPN *a, const int bitsToShift) {
     if (leading_zeros < bitsToShift) { // checks if first limb bit is 1
 
         MPN c = init_empty(a->limbNumber + 1);
-        MP_Addition(a, *a, c);
+        MP_Addition(a, *a, c); //fixme potrei sostituire direttamente il codice rimuovendo la malloc
 
         MP_free(c);
     }
