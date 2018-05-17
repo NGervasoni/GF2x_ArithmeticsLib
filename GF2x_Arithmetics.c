@@ -298,10 +298,15 @@ void MP_ShiftAndAddMul(MPN *result, MPN factor1, MPN factor2, MPN irr_poly) {
 //ASSUMPTION: m1, m2 limbNumb max is T
 void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2) {
 
-    MPN b = init_null(), c;
-    MP_Addition(&b, factor2, init_empty(factor2.limbNumber + 1));
-    c = init_empty(2 * T);
+    MPN b, c;
 
+//    MPN b = init_null();
+//    MP_Addition(&b, factor2, init_empty(factor2.limbNumber + 1));
+
+    ALLOCA_EMPTY(b, (factor2.limbNumber + 1));
+    SUM_IN_FIRSTARG(b, factor2)
+//    c = init_empty(2 * T);
+    ALLOCA_EMPTY(c, 2 * T);
     // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
     for (int k = 0; k < LIMB_BITS; ++k) {
         // j seleziona a ogni ciclo il limb
@@ -318,10 +323,11 @@ void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2) {
             MP_bitShiftLeft(&b, 1);
     }
 
-    MP_free(b);
-    removeLeadingZeroLimbs(&c);
+//    MP_free(b);
+//    removeLeadingZeroLimbs(&c);
     MP_free(*result);
-    *result = c;
+    *result = init(c.num, c.limbNumber);
+
 
 } // end MP_CombRtoLMul
 
