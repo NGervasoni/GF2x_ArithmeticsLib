@@ -57,7 +57,9 @@ MPN init_null() {
 /*---------------------------------------------------------------------------*/
 
 MPN init(LIMB A[], unsigned sizeA) {
-    MPN res = init_empty(sizeA);
+    MPN res;
+    res.num = (LIMB *) malloc(sizeA * sizeof(LIMB));
+    res.limbNumber = sizeA;
     memcpy(res.num, A, sizeA * sizeof(LIMB));
     return res;
 } // end init
@@ -224,14 +226,24 @@ void MP_bitShiftRight(MPN *a) {
 
 void limbShiftLeft(MPN *a, int n) {
 
-    MPN c = init_empty(a->limbNumber + n);
+    for (int j = 0; j < n; ++j) {
+        if (a->num[j] != 0) {
+            MPN c = init_empty(a->limbNumber + n - j);
 
-    for (unsigned i = 0; i < a->limbNumber; i++) {
-        c.num[i] = a->num[i];
+            for (unsigned i = 0; i < a->limbNumber; i++) {
+                c.num[i] = a->num[i];
+            }
+
+            MP_free(*a);
+            *a = c;
+            return;
+        }
     }
 
-    MP_free(*a);
-    *a = c;
+    for (unsigned i = 0; i < a->limbNumber - 1; i++) {
+        a->num[i] = a->num[i + 1];
+    }
+    a->num[a->limbNumber - 1] = 0;
 
 
 } // end limbShiftLeft
@@ -298,7 +310,8 @@ void MP_ShiftAndAddMul(MPN *result, MPN factor1, MPN factor2, MPN irr_poly) {
 //ASSUMPTION: m1, m2 limbNumb max is T
 void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2) {
 
-    MPN b, c;
+    MPN b;
+    MPN c;
 
 //    MPN b = init_null();
 //    MP_Addition(&b, factor2, init_empty(factor2.limbNumber + 1));
@@ -306,7 +319,7 @@ void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2) {
     ALLOCA_EMPTY(b, (factor2.limbNumber + 1));
     SUM_IN_FIRSTARG(b, factor2)
 //    c = init_empty(2 * T);
-    ALLOCA_EMPTY(c, 2 * T);
+    ALLOCA_EMPTY(c, (2 * T));
     // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
     for (int k = 0; k < LIMB_BITS; ++k) {
         // j seleziona a ogni ciclo il limb
@@ -325,7 +338,17 @@ void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2) {
 
 //    MP_free(b);
 //    removeLeadingZeroLimbs(&c);
+//    unsigned counter = 0;
+//    for (int i = 0; i < c.limbNumber - 1; ++i) {
+//        if (c.num[i] == 0) {
+//            counter++;
+//        } else
+//            break;
+//    }
+
+
     MP_free(*result);
+    // = init(&c.num[counter], c.limbNumber - counter);
     *result = init(c.num, c.limbNumber);
 
 
@@ -421,111 +444,132 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN b, unsigned w) {
 
 /*---------------------------------------------------------------------------*/
 
-void MP_KaratsubaMul(MPN *result, MPN factor1, MPN factor2) {
+void karatsuba(MPN *c, MPN factor1, MPN factor2) {
+
 
     if (factor1.limbNumber == 1 && factor2.limbNumber == 1) {
-        MP_CombRtoLMul(result, factor1, factor2);
+
+        // ---------------------MP_CombRtoLMul---------------------
+
+        MPN b;
+
+        ALLOCA_EMPTY(b, (factor2.limbNumber + 1));
+        SUM_IN_FIRSTARG(b, factor2)
+        // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
+        for (int k = 0; k < LIMB_BITS; ++k) {
+            // j seleziona a ogni ciclo il limb
+            for (int j = factor1.limbNumber - 1; j >= 0; --j) {
+                // shift di k posizioni (k=0 => seleziono bit più a destra)
+                if (factor1.num[j] >> k & 0x1) {
+
+                    for (int i = 0; i < b.limbNumber; ++i) {
+                        c->num[c->limbNumber - 1 - (factor1.limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
+                    }
+                }
+            }
+            if (k != LIMB_BITS - 1)
+                MP_bitShiftLeft(&b, 1);
+        }
+
+        // ----------------------end MP_CombRtoLMul----------------
+
         return;
+
     }
 
-    MPN a = init(factor1.num, factor1.limbNumber), b = init(factor2.num, factor2.limbNumber);
-    MPN zero = init_empty(1);
+    MPN a;
+    MPN b;
+    MPN zero;
+    unsigned c_limbs = c->limbNumber;
 
-    if (a.limbNumber > b.limbNumber) {
-        MP_Addition(&b, init_empty(a.limbNumber), b);
-    } else if (b.limbNumber > a.limbNumber) {
-        MP_Addition(&a, init_empty(b.limbNumber), a);
+    ALLOCA_EMPTY(zero, 1)
+
+    if (factor1.limbNumber > factor2.limbNumber) {
+        ALLOCA(a, factor1.num, factor1.limbNumber);
+        ALLOCA(b, factor2.num, factor1.limbNumber);
+
+    } else {
+        ALLOCA(a, factor1.num, factor2.limbNumber);
+        ALLOCA(b, factor2.num, factor2.limbNumber);
+
     }
 
 
     if (a.limbNumber != 1 && b.limbNumber != 1) {
 
-        MPN first = init_null(), second = init_null(), third = init_null(), A_01 = init_null(), B_01 = init_null(), a01perb01 = init_null();
+        MPN first, second, third, a01perb01, A_0, A_1, B_0, B_1;
 
-        MPN c;
+        ALLOCA_EMPTY(first, c_limbs)
+        ALLOCA_EMPTY(third, c_limbs)
+        ALLOCA_EMPTY(a01perb01, c->limbNumber);
 
-        MPN A_0 = init(&a.num[0], a.limbNumber - (a.limbNumber) / 2);
-        MPN A_1 = init(&a.num[a.limbNumber - (a.limbNumber) / 2], (a.limbNumber) / 2);
 
-        MPN B_0 = init(&b.num[0], b.limbNumber - (b.limbNumber) / 2);
-        MPN B_1 = init(&b.num[b.limbNumber - (b.limbNumber) / 2], (b.limbNumber) / 2);
+        ALLOCA(A_0, &a.num[0], (a.limbNumber - (a.limbNumber) / 2))
+        ALLOCA(A_1, &a.num[a.limbNumber - (a.limbNumber) / 2], (a.limbNumber / 2))
+        ALLOCA(B_0, &b.num[0], (b.limbNumber - (b.limbNumber / 2)))
+        ALLOCA(B_1, &b.num[b.limbNumber - (b.limbNumber) / 2], (b.limbNumber / 2))
+
 
         if (isZero(A_0) || isZero(B_0))
-            first = zero;
+            first = zero; //ok,tanto non è mai uno store per risultato
         else
-            MP_KaratsubaMul(&first, A_0, B_0);
+            karatsuba(&first, A_0, B_0);
 
-        c = init(first.num, first.limbNumber);
-        limbShiftLeft(&c, b.limbNumber - b.limbNumber % 2);
+        SUM_IN_FIRSTARG((*c), first);
+        limbShiftLeft(c, b.limbNumber - b.limbNumber % 2);
 
-        MP_KaratsubaMul(&third, A_1, B_1);
-        MP_Addition(&c, c, third);
+        karatsuba(&third, A_1, B_1);
 
-        MP_Addition(&A_01, A_0, A_1);
+        SUM_IN_FIRSTARG(A_0, A_1)
+        SUM_IN_FIRSTARG(B_0, B_1)
 
-        MP_Addition(&B_01, B_0, B_1);
+        ALLOCA(second, third.num, c_limbs)
+        SUM_IN_FIRSTARG(second, first)
 
-        MP_Addition(&second, first, third);
-        MP_KaratsubaMul(&a01perb01, A_01, B_01);
-        MP_Addition(&second, second, a01perb01);
+        karatsuba(&a01perb01, A_0, B_0);
 
+
+        SUM_IN_FIRSTARG(second, a01perb01);
         limbShiftLeft(&second, (b.limbNumber) / 2);
 
+        SUM_IN_FIRSTARG((*c), third)
+        SUM_IN_FIRSTARG((*c), second) //fixme si può ottimizzare se tengo stessa lunghezza
 
-        MP_Addition(&c, c, second);
-
-        MP_free(first);
-        MP_free(second);
-        MP_free(third);
-        MP_free(A_01);
-        MP_free(B_01);
-        MP_free(a01perb01);
-        MP_free(a);
-        MP_free(b);
-        MP_free(*result);
-        *result = c;
-        return;
     }
 
 
-    MPN *ptrLenIsOne, *ptrOther;
-    if (factor1.limbNumber == 1) {
-        ptrLenIsOne = &factor1;
-        ptrOther = &factor2;
-    } else if (factor2.limbNumber == 1) {
-        ptrLenIsOne = &factor2;
-        ptrOther = &factor1;
+} //end karatsuba
+
+void MP_KaratsubaMul(MPN *result, MPN factor1, MPN factor2) {
+
+    if (factor1.limbNumber == 1 && factor2.limbNumber == 1) {
+
+        MP_CombRtoLMul(result, factor1, factor2);
+
     }
 
     MPN c;
 
-    MPN A_0 = init(&(ptrLenIsOne->num[0]), 1);
+    if (factor1.limbNumber > factor2.limbNumber) {
+        ALLOCA_EMPTY(c, 2 * factor1.limbNumber);
 
-    MPN B_0 = init(&(ptrOther->num[0]), ptrOther->limbNumber - (ptrOther->limbNumber) / 2);
-    MPN B_1 = init(&(ptrOther->num[ptrOther->limbNumber - (ptrOther->limbNumber) / 2]), (ptrOther->limbNumber) / 2);
+    } else {
+        ALLOCA_EMPTY(c, 2 * factor2.limbNumber);
 
-    MPN A0B0 = init_null();
-    MP_KaratsubaMul(&A0B0, A_0, B_0);
-    MPN A0B1 = init_null();
-    MP_KaratsubaMul(&A0B1, A_0, B_1);
+    }
 
-    c = init(A0B0.num, A0B0.limbNumber);
+    karatsuba(&c, factor1, factor2);
 
-    limbShiftLeft(&c, ptrOther->limbNumber);
-
-    MP_Addition(&c, c, A0B1);
-
-    MP_free(zero);
-    MP_free(A_0);
-    MP_free(B_0);
-    MP_free(B_1);
-    MP_free(A0B0);
-    MP_free(A0B1);
+    signed counter = 0;
+    for (int i = 0; i < c.limbNumber - 1; ++i) {
+        if (c.num[i] == 0) {
+            counter++;
+        } else
+            break;
+    }
 
     MP_free(*result);
-    *result = c;
-
-
+    *result = init(&c.num[counter], c.limbNumber - counter);
 } //end MP_KaratsubaMul
 
 /*---------------------------------------------------------------------------*/
@@ -1528,6 +1572,7 @@ bool isOne(MPN poly) {
  * It eliminates leading 0s LIMBs, returning the minimum length MPN with the same value
  * if value is zero then leaves just a zeroed limb
 */
+//todo inline
 void removeLeadingZeroLimbs(MPN *poly) {
     unsigned counter = 0;
     for (int i = 0; i < poly->limbNumber - 1; ++i) {
@@ -1536,9 +1581,13 @@ void removeLeadingZeroLimbs(MPN *poly) {
         } else
             break;
     }
-    MPN c = init(&poly->num[counter], poly->limbNumber - counter);
-    MP_free(*poly);
-    *poly = c;
+    if (counter != 0) {
+        MPN c = init(&poly->num[counter], poly->limbNumber - counter);
+        MP_free(*poly);
+        *poly = c;
+        return;
+    }
+
 } //end removeLeadingZeroLimbs
 
 /*---------------------------------------------------------------------------*/

@@ -33,9 +33,10 @@
                                     memset(poly.num,0,size * sizeof(LIMB));\
                                     }
 
-#define ALLOCA(poly, limb_pnt, size) {poly.num = (LIMB *) alloca(size * sizeof(LIMB)); \
-                                    poly.limbNumber = size; \
-                                    memcpy(poly.num, limb_pnt, size * sizeof(LIMB)); \
+#define ALLOCA(poly, limb_pnt, size) { poly.num = (LIMB *) alloca(size * sizeof(LIMB)); \
+                                       poly.limbNumber = size; \
+                                       memset(poly.num,0,size * sizeof(LIMB)); \
+                                       memcpy(poly.num, limb_pnt, size * sizeof(LIMB)); \
 }
 
 
