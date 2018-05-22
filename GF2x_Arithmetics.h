@@ -39,6 +39,12 @@
                                        memcpy(poly.num, limb_pnt, size * sizeof(LIMB)); \
 }
 
+#define LEAD_ZERO_LIMB_COUNT(counter, poly){ for (int i = 0; i < (poly).limbNumber - 1; ++i) {\
+                                            if ((poly).num[i] == 0) {\
+                                                (counter)++;\
+                                            } else\
+                                                break;\
+                                           }}\
 
 /*---------------------------------------------------------------------------*/
 
