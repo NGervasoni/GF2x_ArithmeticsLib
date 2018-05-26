@@ -14,7 +14,7 @@ void create_precomputed() {
 
         for (unsigned i = 1; i < 8; ++i) {
             temp = temp >> 1;
-            precomputed[j] = (uint16_t) (precomputed[j] + (temp & 1) * pow(2, 2 * i));
+            precomputed[j] = (uint16_t) (precomputed[j] + (temp & 1) * (2, 2 * i));
 
         }
     }
@@ -342,15 +342,9 @@ void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2) {
             MP_bitShiftLeft(&b, 1);
     }
 
-//    MP_free(b);
-//    removeLeadingZeroLimbs(&c);
-//    unsigned counter = 0;
-//    for (int i = 0; i < c.limbNumber - 1; ++i) {
-//        if (c.num[i] == 0) {
-//            counter++;
-//        } else
-//            break;
-//    }
+    unsigned counter = 0;
+
+    LEAD_ZERO_LIMB_COUNT(counter, c);
 
 
     MP_free(*result);
@@ -571,7 +565,7 @@ void karatsuba(MPN *c, MPN factor1, MPN factor2) {
 
 //void MP_KaratsubaMul(MPN *result, MPN factor1, MPN factor2) {
 //
-//    if (factor1.limbNumber == 1 && factor2.limbNumber == 1) {
+//    if (factor1.limbNumber == 1 && factor2.limbNumber == 1) {zz
 //
 //        MP_CombRtoLMul(result, factor1, factor2);
 //
@@ -953,19 +947,22 @@ MPN MP_Division_Bin_Inv(MPN a, MPN b, MPN irr_poly) {
 
 
 /*---------------------------------------------------------------------------*/
-
+//todo inline
 void MP_exactDivOnePlusX(MPN poly) {
     LIMB t = 0;
     long i;
 
     for (i = poly.limbNumber - 1; i >= 0; i--) {
-        t ^= poly.num[i];
+        //fixme per zeri in mezzo
+        if (poly.num[i] != 0) {
+            t ^= poly.num[i];
 
-        for (int j = 1; j <= LIMB_BITS / 2; j = j * 2) {
-            t ^= t << j;
+            for (int j = 1; j <= LIMB_BITS / 2; j = j * 2) {
+                t ^= t << j;
+            }
+            poly.num[i] = t;
+            t >>= LIMB_BITS - 1;
         }
-        poly.num[i] = t;
-        t >>= LIMB_BITS - 1;
     }
 } // end MP_exactDivOnePlusX
 
@@ -1039,178 +1036,616 @@ void MP_exactDivXtwoPlusXFour(MPN poly) {
 
 /*---------------------------------------------------------------------------*/
 
-void MP_Toom3(MPN *result, MPN factor1, MPN factor2) {
+void toom3(MPN *result, MPN factor1, MPN factor2) {
 
-    MPN u = init(factor1.num, factor1.limbNumber), v = init(factor2.num, factor2.limbNumber);
 
+    PRINTF(("\n------toom3-------"));
+
+//    MPN u = init(factor1.num, factor1.limbNumber), v = init(factor2.num, factor2.limbNumber);
+
+    MPN u, v;
+
+    MPN temp;
+
+    int counter1 = 0, counter2 = 0;
+    LEAD_ZERO_LIMB_COUNT(counter1, factor1)
+    LEAD_ZERO_LIMB_COUNT(counter2, factor2)
+
+    if (counter1 == factor1.limbNumber && counter2 == factor2.limbNumber) {
+        SUM_IN_FIRSTARG(*result, *result);
+        return;
+    }
+
+    if (factor1.limbNumber - counter1 > factor2.limbNumber - counter2) {
+
+        ALLOCA(u, &(factor1.num[counter1]), factor1.limbNumber - counter1)
+        ALLOCA_EMPTY(v, factor1.limbNumber - counter1)
+        if (counter2 != factor2.limbNumber) {
+            temp.num = &factor2.num[counter2];
+            temp.limbNumber = factor2.limbNumber - counter2;
+            SUM_IN_FIRSTARG(v, temp)
+        }
+    } else {
+        ALLOCA(v, &(factor2.num[counter2]), factor2.limbNumber - counter2)
+        ALLOCA_EMPTY(u, factor2.limbNumber - counter2)
+        if (counter1 != factor1.limbNumber) {
+            temp.num = &factor1.num[counter1];
+            temp.limbNumber = factor1.limbNumber - counter1;
+            SUM_IN_FIRSTARG(u, temp)
+        }
+
+
+    }
+
+    T3(("\nu: ", u));
+    T3(("\nv: ", v));
+    T3(("\nresult: ", *result));
 
     if (u.limbNumber < 3 && v.limbNumber < 3) {
-        MP_CombRtoLMul(result, u, v);
+
+        // ---------------------MP_CombRtoLMul---------------------
+
+        MPN b;
+        MPN c;
+
+        ALLOCA_EMPTY(c, result->limbNumber)
+
+        ALLOCA_EMPTY(b, (v.limbNumber + 1));
+        SUM_IN_FIRSTARG(b, v)
+
+//        if (u.limbNumber > v.limbNumber) {
+//            ALLOCA_EMPTY(c, (2 * u.limbNumber));
+//        } else ALLOCA_EMPTY(c, (2 * v.limbNumber));
+        // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
+        for (int k = 0; k < LIMB_BITS; ++k) {
+            // j seleziona a ogni ciclo il limb
+            for (int j = u.limbNumber - 1; j >= 0; --j) {
+                // shift di k posizioni (k=0 => seleziono bit più a destra)
+                if (u.num[j] >> k & 0x1) { //OKKK!!
+
+                    for (int i = 0; i < b.limbNumber; ++i) {
+                        c.num[c.limbNumber - 1 - (u.limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
+                    }
+                }
+            }
+            if (k != LIMB_BITS - 1)
+                MP_bitShiftLeft(&b, 1);
+        }
+
+        unsigned counter = 0;
+
+        LEAD_ZERO_LIMB_COUNT(counter, c);
+
+
+//        *result = init(c.num, c.limbNumber);
+//
+        SUM_IN_FIRSTARG(*result, *result); //azzero contenuto di result
+        SUM_IN_FIRSTARG(*result, c);
+
+//        ALLOCA(*result,c.num,c.limbNumber) // non va
+
+        // ----------------------end MP_CombRtoLMul----------------
+
+        PRINTF(("\n----end------"));
+
         return;
     }
 
 
     MPN u2, u1, u0, v2, v1, v0;
-    MPN *ptrMax, *ptrMin;
+//    MPN *ptrMax, *ptrMin;
 
 
-    if (u.limbNumber >= v.limbNumber) {
-        ptrMax = &u;
-        ptrMin = &v;
-    } else {
-        ptrMax = &v;
-        ptrMin = &u;
-    }
+//    if (u.limbNumber >= v.limbNumber) {
+//        ptrMax = &u;
+//        ptrMin = &v;
+//    } else {
+//        ptrMax = &v;
+//        ptrMin = &u;
+//    }
 
-    MP_Addition(ptrMin, init_empty(ptrMax->limbNumber), *ptrMin);
+
+
+//    MP_Addition(ptrMin, init_empty(ptrMax->limbNumber), *ptrMin);
+
+    // factor 1 e 2 dovrebbero arrivarmi già della stessa dimensione? fixme NO
+
+
 
 
     unsigned u_limbs_div3 = u.limbNumber / 3;
-    int bih;
+    int bih; //number of limbs for each part
 
     if (u_limbs_div3 * 3 == u.limbNumber) {
-        u2 = init(&(u.num[0]), u_limbs_div3);
-        u1 = init(&(u.num[u_limbs_div3]), u_limbs_div3);
-        u0 = init(&(u.num[2 * u_limbs_div3]), u_limbs_div3);
-
-        v2 = init(&(v.num[0]), u_limbs_div3);
-        v1 = init(&(v.num[u_limbs_div3]), u_limbs_div3);
-        v0 = init(&(v.num[2 * u_limbs_div3]), u_limbs_div3);
 
         bih = u_limbs_div3;
+
+//        u2 = init(&(u.num[0]), u_limbs_div3);
+//        u1 = init(&(u.num[u_limbs_div3]), u_limbs_div3);
+//        u0 = init(&(u.num[2 * u_limbs_div3]), u_limbs_div3);
+
+        ALLOCA(u2, &(u.num[0]), u_limbs_div3)
+        ALLOCA(u1, &(u.num[u_limbs_div3]), u_limbs_div3)
+        ALLOCA(u0, &(u.num[2 * u_limbs_div3]), u_limbs_div3)
+//
+//        v2 = init(&(v.num[0]), u_limbs_div3);
+//        v1 = init(&(v.num[u_limbs_div3]), u_limbs_div3);
+//        v0 = init(&(v.num[2 * u_limbs_div3]), u_limbs_div3);
+
+
+        ALLOCA(v2, &(v.num[0]), u_limbs_div3)
+        ALLOCA(v1, &(v.num[u_limbs_div3]), u_limbs_div3)
+        ALLOCA(v0, &(v.num[2 * u_limbs_div3]), u_limbs_div3)
 
 
     } else {
 
         unsigned blocks = 2 + 2 * u_limbs_div3;
-
-        u2 = init(&(u.num[0]), u.limbNumber - blocks);
-        u1 = init(&(u.num[u.limbNumber - blocks]), u_limbs_div3 + 1);
-        u0 = init(&(u.num[u.limbNumber - u_limbs_div3 - 1]), u_limbs_div3 + 1);
-
-
-        v2 = init(&(v.num[0]), v.limbNumber - blocks);
-        v1 = init(&(v.num[v.limbNumber - blocks]), u_limbs_div3 + 1);
-        v0 = init(&(v.num[v.limbNumber - u_limbs_div3 - 1]), u_limbs_div3 + 1);
         bih = u_limbs_div3 + 1;
 
+//        u2 = init(&(u.num[0]), u.limbNumber - blocks);
+//        u1 = init(&(u.num[u.limbNumber - blocks]), u_limbs_div3 + 1);
+//        u0 = init(&(u.num[u.limbNumber - u_limbs_div3 - 1]), u_limbs_div3 + 1);
+
+        ALLOCA_EMPTY(u2, bih);
+        ALLOCA_EMPTY(u1, bih);
+        ALLOCA_EMPTY(u0, bih);
+
+
+        PRINTF(("\n-- %d", u.limbNumber - blocks));
+        for (int i = 0; i < (int) (u.limbNumber - blocks); ++i) {
+            PRINTF(("\nhere i:%d", i));
+            u2.num[bih - (u.limbNumber - blocks) + i] ^= u.num[i];
+        }
+
+        PRINTF(("\nu.limbNumber - blocks: %d", u.limbNumber - blocks));
+        PRINTF(("\nu.limbNumber - u_limbs_div3 - 1: %d", u.limbNumber - u_limbs_div3 - 1));
+
+        for (int j = 0; j < (int) u_limbs_div3 + 1; ++j) {
+//            PRINTF(("\nhere2"));
+//            PRINTF(("\n%lu", u.num[u.limbNumber - u_limbs_div3 - 1 + j]));
+            u1.num[j] ^= u.num[u.limbNumber - blocks + j];
+            u0.num[j] ^= u.num[u.limbNumber - u_limbs_div3 - 1 + j];
+        }
+
+//        ALLOCA(u2, &(u.num[0]), u_limbs_div3)
+//        ALLOCA(u1, &(u.num[u_limbs_div3]), u_limbs_div3)
+//        ALLOCA(u0, &(u.num[2 * u_limbs_div3]), u_limbs_div3)
+
+
+//        v2 = init(&(v.num[0]), v.limbNumber - blocks);
+//        v1 = init(&(v.num[v.limbNumber - blocks]), u_limbs_div3 + 1);
+//        v0 = init(&(v.num[v.limbNumber - u_limbs_div3 - 1]), u_limbs_div3 + 1);
+
+
+        ALLOCA_EMPTY(v2, bih);
+        ALLOCA_EMPTY(v1, bih);
+        ALLOCA_EMPTY(v0, bih);
+
+
+        for (int i = 0; i < (int) (v.limbNumber - blocks); ++i) {
+
+            v2.num[bih - (v.limbNumber - blocks) + i] ^= v.num[i];
+        }
+        for (int j = 0; j < (int) u_limbs_div3 + 1; ++j) {
+//            PRINTF(("\nhere2"));
+//            PRINTF(("\n%lu", u.num[u.limbNumber - blocks + j]));
+//            PRINTF(("\n%lu", u.num[u.limbNumber - u_limbs_div3 - 1 + j]));
+            v1.num[j] ^= v.num[v.limbNumber - blocks + j];
+            v0.num[j] ^= v.num[v.limbNumber - u_limbs_div3 - 1 + j];
+        }
+
+
     }
+
+    PRINTF(("\nu_limbs_div3: %d", u_limbs_div3));
+    PRINTF(("\nbih: %d", bih));
+
+
+    T3(("\nu: ", u));
+    T3(("\nv: ", v));
+
+    T3(("\nu0: ", u0));
+    T3(("\nu1: ", u1));
+    T3(("\nu2: ", u2));
+
+
+    T3(("\nv0: ", v0));
+    T3(("\nv1: ", v1));
+    T3(("\nv2: ", v2));
 
 
     MPN w = init_null();
     MPN w0 = init_null(), w1 = init_null(), w2 = init_null(), w3 = init_null(), w4 = init_null();
 
-    LIMB xterzapiuuno_limb[] = {0x9};
-    MPN xterzapiuuno = init(xterzapiuuno_limb, 1);
+//    LIMB xterzapiuuno_limb[] = {0x9};
+//    MPN xterzapiuuno = init(xterzapiuuno_limb, 1);
 
+
+//    MPN w;
+//    MPN w0, w1, w2, w3, w4;
+
+    ALLOCA_EMPTY(w0, 4 * bih)
+    ALLOCA_EMPTY(w1, 4 * bih)
+    ALLOCA_EMPTY(w2, 4 * bih) //viene sommato a xterza+1 todo sostituirlo poi con x^3+1 direttamente
+    ALLOCA_EMPTY(w3, 4 * bih)
+    ALLOCA_EMPTY(w4, 4 * bih)
+
+    LIMB xterzapiuuno_limb[] = {0x9};
+//    MPN xterzapiuuno = init(xterzapiuuno_limb, 1);
+    MPN xterzapiuuno;
+    ALLOCA_EMPTY(xterzapiuuno, 4 * bih)
+    xterzapiuuno.num[xterzapiuuno.limbNumber - 1] = 0x9;
+
+//    ALLOCA(xterzapiuuno, xterzapiuuno_limb, 4 * bih) //probabilmente basta meno, anche 3
+
+
+    T3(("\nw0: ", w0));
+    T3(("\nw1: ", w1));
+    T3(("\nw2: ", w2));
+    T3(("\nw3: ", w3));
+    T3(("\nw4: ", w4));
 
     //EVALUATION
 
-    MPN temp = init_null();
-    MP_Addition(&temp, u0, u1);
-    MP_Addition(&w3, temp, u2);
+    temp = init_null();
+//    MP_Addition(&temp, u0, u1);
+//    MP_Addition(&w3, temp, u2);
 
-    MP_Addition(&temp, v0, v1);
-    MP_Addition(&w2, temp, v2);
 
-    MP_Toom3(&w1, w3, w2);
 
-    MPN u2perx2 = init(u2.num, u2.limbNumber);
+    //    ----------------------------------- w3 -----------------------------------
+
+    SUM_IN_FIRSTARG(w3, u0)
+    SUM_IN_FIRSTARG(w3, u1)
+    SUM_IN_FIRSTARG(w3, u2)
+
+    T3(("\nw3: ", w3));
+
+
+
+    //    ----------------------------------- w2 -----------------------------------
+//
+//    MP_Addition(&temp, v0, v1);
+//    MP_Addition(&w2, temp, v2);
+
+    SUM_IN_FIRSTARG(w2, v0)
+    SUM_IN_FIRSTARG(w2, v1)
+    SUM_IN_FIRSTARG(w2, v2)
+
+    T3(("\nw2: ", w2));
+
+
+    //    ----------------------------------- w1 -----------------------------------
+
+//    MP_Toom3(&w1, w3, w2);
+
+//    INIT_TO_FIT_MUL(w1, w3, w2) FIXME
+    toom3(&w1, w3, w2);
+
+    T3(("\nw1: ", w1));
+
+
+    MPN u2perx2;
+//    u2perx2= init(u2.num, u2.limbNumber);
+    ALLOCA_EMPTY(u2perx2, u2.limbNumber + 1); //migliorabile fixme
+    SUM_IN_FIRSTARG(u2perx2, u2)
     MP_bitShiftLeft(&u2perx2, 2);
 
-    MPN u1perx = init(u1.num, u1.limbNumber);
+
+    MPN u1perx;
+//    u1perx= init(u1.num, u1.limbNumber);
+    ALLOCA_EMPTY(u1perx, u1.limbNumber + 1); //migliorabile fixme
+    SUM_IN_FIRSTARG(u1perx, u1)
     MP_bitShiftLeft(&u1perx, 1);
 
-    MP_Addition(&w0, u2perx2, u1perx);
+    T3(("\nu2perx2: ", u2perx2));
+    T3(("\nu1perx: ", u1perx));
 
-    MPN v2perx2 = init(v2.num, v2.limbNumber);
+
+    //    ----------------------------------- w0 -----------------------------------
+
+
+//    MP_Addition(&w0, u2perx2, u1perx);
+
+    SUM_IN_FIRSTARG(w0, u2perx2)
+    SUM_IN_FIRSTARG(w0, u1perx)
+
+    T3(("\nw0: ", w0));
+
+
+// fixme --------
+    MPN v2perx2;
+//    = init(v2.num, v2.limbNumber);
+    ALLOCA_EMPTY(v2perx2, v2.limbNumber + 1)
+    SUM_IN_FIRSTARG(v2perx2, v2)
     MP_bitShiftLeft(&v2perx2, 2);
 
-    MPN v1perx = init(v1.num, v1.limbNumber);
+    MPN v1perx;
+//    = init(v1.num, v1.limbNumber);
+    ALLOCA_EMPTY(v1perx, v1.limbNumber + 1)
+    SUM_IN_FIRSTARG(v1perx, v1)
     MP_bitShiftLeft(&v1perx, 1);
 
-    MP_Addition(&w4, v2perx2, v1perx);
-
-    MP_Addition(&w3, w3, w0);
-    MP_Addition(&w2, w2, w4);
-
-    MP_Addition(&w0, w0, u0);
-    MP_Addition(&w4, w4, v0);
-
-    MP_Toom3(&w3, w3, w2);
-    MP_Toom3(&w2, w0, w4);
+    // --------
+    //    ----------------------------------- w4 -----------------------------------
 
 
-    MP_Toom3(&w4, u2, v2);
-    MP_Toom3(&w0, u0, v0);
+//    MP_Addition(&w4, v2perx2, v1perx);
+
+    SUM_IN_FIRSTARG(w4, v2perx2)
+    SUM_IN_FIRSTARG(w4, v1perx)
+
+
+    T3(("\nw4: ", w4));
+
+//    MP_Addition(&w3, w3, w0);
+    SUM_IN_FIRSTARG(w3, w0)
+
+    T3(("\nw3: ", w3));
+
+//    MP_Addition(&w2, w2, w4);
+    SUM_IN_FIRSTARG(w2, w4)
+
+
+    T3(("\nw2: ", w2));
+
+//    MP_Addition(&w0, w0, u0);
+    SUM_IN_FIRSTARG(w0, u0)
+
+    T3(("\nw0: ", w0));
+
+//    MP_Addition(&w4, w4, v0);
+    SUM_IN_FIRSTARG(w4, v0)
+
+
+
+//    MP_Toom3(&w3, w3, w2);
+
+//    INIT_TO_FIT_MUL(w3,w3,w2)
+//    SUM_IN_FIRSTARG(w3,w3)
+//
+
+
+
+    toom3(&w3, w3, w2);
+    T3(("\n---------w3: ", w3));
+
+
+
+
+
+//    MP_Toom3(&w2, w0, w4);
+    toom3(&w2, w0, w4);
+
+    T3(("\nw2: ", w2));
+
+
+    toom3(&w4, u2, v2);
+    T3(("\nw4: ", w4));
+
+    toom3(&w0, u0, v0);
+
+//    toom3(&w0, u0, v0);
+    T3(("\nw0: ", w0));
 
 
     //INTERPOLATION
 
 
-    MP_Addition(&w3, w3, w2);
+
+//    MP_Addition(&w3, w3, w2);
+    SUM_IN_FIRSTARG(w3, w2)
+    T3(("\nw3: ", w3));
 
 
-    MP_Addition(&w2, w2, w0);
+//    MP_Addition(&w2, w2, w0);
+    SUM_IN_FIRSTARG(w2, w0)
+    T3(("\nw2: ", w2));
+
 
     MP_bitShiftRight(&w2);
+    T3(("\nw2: ", w2));
 
-    MP_Addition(&temp, w2, w3);
-    MP_Toom3(&xterzapiuuno, xterzapiuuno, w4);
-    MP_Addition(&w2, temp, xterzapiuuno);
+//    MP_Addition(&temp, w2, w3);
+    SUM_IN_FIRSTARG(w2, w3)
+    //fixme provare a sostituire con temp
+    MPN temp1;
+    ALLOCA_EMPTY(temp1, bih * 4)
+    SUM_IN_FIRSTARG(temp1, w2)
+    SUM_IN_FIRSTARG(temp1, w3)
+
+    toom3(&xterzapiuuno, xterzapiuuno, w4);
+//    MP_Toom3(&xterzapiuuno, xterzapiuuno, w4);
+
+//    MP_Addition(&w2, temp, xterzapiuuno);
+    SUM_IN_FIRSTARG(w2, xterzapiuuno)
+
+    T3(("\nAA w2: ", w2));
 
 
     MP_exactDivOnePlusX(w2);
+    T3(("\nw2: ", w2));
+
+    T3(("\nboh w1: ", w1));
+    T3(("\nboh w0: ", w0));
+
+//    MP_Addition(&w1, w1, w0);
+    SUM_IN_FIRSTARG(w1, w0)
+    T3(("\nw1: ", w1));
 
 
-    MP_Addition(&w1, w1, w0);
+
+//    MP_Addition(&w3, w3, w1);
+    SUM_IN_FIRSTARG(w3, w1)
+    T3(("\nw1: ", w1));
+    T3(("\nw3: ", w3));
+
+//    for (int i = 0; i < (w1).limbNumber; i++) {
+//
+//        (w3).num[(w3).limbNumber - (w1).limbNumber + i] =
+//                (w3).num[(w3).limbNumber - (w1).limbNumber + i] ^ (w1).num[i];
+//
+//    }
 
 
-    MP_Addition(&w3, w3, w1);
 
+    //    T3(("\nw3: ", w3));
     MP_bitShiftRight(&w3);
+    T3(("\nw3: ", w3));
 
     MP_exactDivOnePlusX(w3);
+    T3(("\nw3: ", w3));
 
 
-    MP_Addition(&temp, w1, w4);
-    MP_Addition(&w1, temp, w2);
+//    MP_Addition(&temp, w1, w4);
+//    MP_Addition(&w1, temp, w2);
+    SUM_IN_FIRSTARG(w1, w4)
+    SUM_IN_FIRSTARG(w1, w2)
+
+    T3(("\nw1: ", w1));
 
 
-    MP_Addition(&w2, w2, w3);
+//    MP_Addition(&w2, w2, w3);
+    SUM_IN_FIRSTARG(w2, w3)
 
 
-    limbShiftLeft(&w1, 1 * bih);
-    MP_Addition(&w, w0, w1);
-    limbShiftLeft(&w2, 2 * bih);
-    MP_Addition(&w, w, w2);
-    limbShiftLeft(&w3, 3 * bih);
-    MP_Addition(&w, w, w3);
-    limbShiftLeft(&w4, 4 * bih);
-    MP_Addition(&w, w, w4);
+    T3(("\nw2: ", w2));
 
-    MP_free(temp);
-    MP_free(u);
-    MP_free(u0);
-    MP_free(u1);
-    MP_free(u1perx);
-    MP_free(u2);
-    MP_free(u2perx2);
-    MP_free(v);
-    MP_free(v0);
-    MP_free(v1);
-    MP_free(v1perx);
-    MP_free(v2);
-    MP_free(v2perx2);
-    MP_free(xterzapiuuno);
-    MP_free(w0);
-    MP_free(w1);
-    MP_free(w2);
-    MP_free(w3);
-    MP_free(w4);
+
+    SUM_IN_FIRSTARG(*result, *result)
+    T3(("\nresult: ", *result));
+
+    SUM_IN_FIRSTARG(*result, w0)
+    T3(("\nresult: ", *result));
+
+
+
+//
+//    T3(("\nresult: ", *result));
+
+    PRINTF(("\n----end------"));
+
+//
+//    w = init_null();
+
+//
+    T3(("\nw0: ", w0));
+    T3(("\nw1: ", w1));
+    T3(("\nw2: ", w2));
+    T3(("\nw3: ", w3));
+    T3(("\nw4: ", w4));
+
+
+    int counter = 0;
+    LEAD_ZERO_LIMB_COUNT(counter, w1)
+    for (int l = 0; l < w1.limbNumber - counter; ++l) {
+        result->num[(result->limbNumber) - l - 1 - bih] ^= w1.num[w1.limbNumber - 1 - l];
+    }
+    T3(("\nresult: ", *result));
+
+    counter = 0;
+    LEAD_ZERO_LIMB_COUNT(counter, w2)
+    for (int l = 0; l < w2.limbNumber - counter; ++l) {
+        result->num[(result->limbNumber) - l - 1 - 2 * bih] ^= w2.num[w2.limbNumber - 1 - l];
+    }
+    T3(("\nresult: ", *result));
+
+    counter = 0;
+    LEAD_ZERO_LIMB_COUNT(counter, w3)
+    for (int l = 0; l < w3.limbNumber - counter; ++l) {
+        result->num[(result->limbNumber) - l - 1 - 3 * bih] ^= w3.num[w3.limbNumber - 1 - l];
+    }
+    T3(("\nresult: ", *result));
+
+    counter = 0;
+    T3(("\nw4: ", w4));
+
+    LEAD_ZERO_LIMB_COUNT(counter, w4)
+    PRINTF(("\ncounter: %d", counter));
+    for (int l = 0; l < w4.limbNumber - counter; ++l) {
+        result->num[(result->limbNumber) - l - 1 - 4 * bih] ^= w4.num[w4.limbNumber - 1 - l];
+    }
+
+    T3(("\nresult: ", *result));
+
+//    w = init(w.num, w.limbNumber);
+//    w0 = init(w0.num, w0.limbNumber);
+//    w1 = init(w1.num, w1.limbNumber);
+//    w2 = init(w2.num, w2.limbNumber);
+//    w3 = init(w3.num, w3.limbNumber);
+//    w4 = init(w4.num, w4.limbNumber);
+
+//    limbShiftLeft(&w1, 1 * bih);
+//    MP_Addition(&w, w, w1);
+
+//
+//    T3(("\nw: ", w));
+//
+//    limbShiftLeft(&w2, 2 * bih);
+//    MP_Addition(&w, w, w2);
+//    T3(("\nw: ", w));
+//
+//    limbShiftLeft(&w3, 3 * bih);
+//    MP_Addition(&w, w, w3);
+//    T3(("\nw: ", w));
+//
+//    limbShiftLeft(&w4, 4 * bih);
+//    MP_Addition(&w, w, w4);
+//    T3(("\nw: ", w));
+//
+//
+//    removeLeadingZeroLimbs(&w);
+//    *result = w;
+} // end MP_Toom3
+
+
+void MP_Toom3(MPN *result, MPN factor1, MPN factor2) {
+    PRINTF(("\n------tooom3NEW-------"));
+    T3(("\nfactor1: ", factor1));
+    T3(("\nfactor2: ", factor2));
+
+
+//    MPN u = init(factor1.num, factor1.limbNumber), v = init(factor2.num, factor2.limbNumber);
+//
+
+    if (factor1.limbNumber < 3 && factor2.limbNumber < 3) {
+        MP_CombRtoLMul(result, factor1, factor2);
+        return;
+    }
+
+    MPN partial_result;
+
+//    int counter1 = 0, counter2 = 0;
+//    LEAD_ZERO_LIMB_COUNT(counter1, factor1)
+//    LEAD_ZERO_LIMB_COUNT(counter2, factor2)
+//
+//    if (factor1.limbNumber - counter1 > factor2.limbNumber - counter2) {
+////        ALLOCA(u, &(factor1.num[counter1]), factor1.limbNumber - counter1)
+//        ALLOCA_EMPTY(v, factor1.limbNumber - counter1)
+////        temp.num = &factor2.num[counter2];
+////        temp.limbNumber = factor2.limbNumber - counter2;
+////        SUM_IN_FIRSTARG(v, temp)
+//    } else {
+////        ALLOCA(v, &(factor2.num[counter2]), factor2.limbNumber - counter2)
+//        ALLOCA_EMPTY(u, factor2.limbNumber - counter2)
+////        temp.num = &factor1.num[counter1];
+////        temp.limbNumber = factor1.limbNumber - counter1;
+////        SUM_IN_FIRSTARG(u, temp)
+//
+//    }
+
+
+
+    INIT_TO_FIT_MUL(partial_result, factor1, factor2)
+
+    T3(("\npar_res: ", partial_result));
+    toom3(&partial_result, factor1, factor2);
+//    toom3(result, factor1, factor2);
+
+
     MP_free(*result);
-    removeLeadingZeroLimbs(&w);
-    *result = w;
+    *result = init(partial_result.num, partial_result.limbNumber);
 } // end MP_Toom3
 
 

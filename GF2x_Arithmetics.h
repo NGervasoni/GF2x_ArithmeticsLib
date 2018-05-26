@@ -17,34 +17,41 @@
 #define PRINTF(x) printf x
 #define PRINT(x) print x
 #define T4(x) print x
+#define T3(x) print x
+
 #else
 #define PRINTF(x) /*nothing*/
 #define PRINT(x)
 #define T4(x)
+#define T3(x)
+
 #endif
 
-#define SUM_IN_FIRSTARG(a, b) { for (int i = 0; i < b.limbNumber; i++) { \
-                                    a.num[a.limbNumber - b.limbNumber + i] = a.num[a.limbNumber - b.limbNumber + i] ^ b.num[i]; \
+#define SUM_IN_FIRSTARG(a, b) { for (int i = 0; i < (b).limbNumber; i++) { \
+                                    (a).num[(a).limbNumber - (b).limbNumber + i] = (a).num[(a).limbNumber - (b).limbNumber + i] ^ (b).num[i]; \
                                     }}
 
 
-#define ALLOCA_EMPTY(poly, size) {  poly.num = (LIMB *) alloca(size * sizeof(LIMB)); \
-                                    poly.limbNumber = size; \
-                                    memset(poly.num,0,size * sizeof(LIMB));\
+#define ALLOCA_EMPTY(poly, size) {  (poly).num = (LIMB *) alloca((size) * sizeof(LIMB)); \
+                                    (poly).limbNumber = size; \
+                                    memset((poly).num,0,(size) * sizeof(LIMB));\
                                     }
 
-#define ALLOCA(poly, limb_pnt, size) { poly.num = (LIMB *) alloca(size * sizeof(LIMB)); \
-                                       poly.limbNumber = size; \
-                                       memset(poly.num,0,size * sizeof(LIMB)); \
-                                       memcpy(poly.num, limb_pnt, size * sizeof(LIMB)); \
-}
+#define ALLOCA(poly, limb_pnt, size) { (poly).num = (LIMB *) alloca((size) * sizeof(LIMB)); \
+                                       (poly).limbNumber = size; \
+                                       memset((poly).num,0,(size) * sizeof(LIMB)); \
+                                       memcpy((poly).num, limb_pnt, (size) * sizeof(LIMB)); \
+}//forse memset è inutile non è la size giusta fixme
 
-#define LEAD_ZERO_LIMB_COUNT(counter, poly){ for (int i = 0; i < (poly).limbNumber - 1; ++i) {\
+#define LEAD_ZERO_LIMB_COUNT(counter, poly){ for (int i = 0; i < (poly).limbNumber; ++i) {\
                                             if ((poly).num[i] == 0) {\
                                                 (counter)++;\
                                             } else\
                                                 break;\
                                            }}\
+
+#define INIT_TO_FIT_MUL(c, a, b) {  if ((a).limbNumber > (b).limbNumber) ALLOCA_EMPTY(c, (2 * (a).limbNumber)) \
+                                else ALLOCA_EMPTY(c, (2 * (b).limbNumber))};
 
 /*---------------------------------------------------------------------------*/
 
