@@ -39,9 +39,8 @@
 
 #define ALLOCA(poly, limb_pnt, size) { (poly).num = (LIMB *) alloca((size) * sizeof(LIMB)); \
                                        (poly).limbNumber = size; \
-                                       memset((poly).num,0,(size) * sizeof(LIMB)); \
                                        memcpy((poly).num, limb_pnt, (size) * sizeof(LIMB)); \
-}//forse memset è inutile non è la size giusta fixme
+}
 
 #define LEAD_ZERO_LIMB_COUNT(counter, poly){ for (int i = 0; i < (poly).limbNumber; ++i) {\
                                             if ((poly).num[i] == 0) {\
@@ -69,7 +68,7 @@
 
 
 typedef struct gf2x_mp_t {  // to be though in big-endian notation: num[0] stores the most significant bit
-    LIMB *restrict num; //fixme check
+    LIMB *restrict num;
     unsigned limbNumber;
 } MPN;
 
@@ -83,22 +82,19 @@ MPN init(LIMB A[], unsigned sizeA);
 
 void MP_free(MPN poly);
 
-
 void print(char *str, MPN poly);
 
-void MP_bitShiftLeft(MPN *a, int bitsToShift);
+static inline void MP_bitShiftLeft(MPN *a, int bitsToShift);
 
-void MP_bitShiftRight(MPN *a);
+static inline void MP_bitShiftRight(MPN *a);
 
-void limbShiftLeft(MPN *a, int n);
+static inline void limbShiftLeft(MPN *a, int n);
 
 void removeLeadingZeroLimbs(MPN *poly);
 
-bool isZero(MPN poly);
-
+static inline bool isZero(MPN poly);
 
 void MP_Addition(MPN *result, MPN a, MPN b);
-
 
 void MP_ShiftAndAddMul(MPN *result, MPN factor1, MPN factor2, MPN irr_poly);
 
@@ -123,17 +119,17 @@ MPN MP_Inversion_EE(MPN a, MPN irr_poly);
 MPN MP_Division_Bin_Inv(MPN a, MPN b, MPN irr_poly);
 
 
-void MP_exactDivOnePlusX(MPN poly);
+static inline void MP_exactDivOnePlusX(MPN poly);
 
-void MP_exactDivXPlusXFour(MPN poly);
+static inline void MP_exactDivXPlusXFour(MPN poly);
 
-void MP_exactDivXtwoPlusXFour(MPN poly);
+static inline void MP_exactDivXtwoPlusXFour(MPN poly);
 
 /*---------------------------------------------------------------------------*/
 
 unsigned degree(MPN poly);
 
-bool isOne(MPN poly);
+static inline bool isOne(MPN poly);
 
 bool MP_compare(MPN a, MPN b);
 
