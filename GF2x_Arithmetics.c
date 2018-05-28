@@ -370,12 +370,13 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
 
     if (factor1.limbNumber > factor2.limbNumber) {
         a = factor1;
-        b = init_empty(factor1.limbNumber);
+        ALLOCA_EMPTY(b, factor1.limbNumber)//= init_empty(factor1.limbNumber);
         SUM_IN_FIRSTARG(b, factor2)
 
     } else {
-        a = init_empty(factor2.limbNumber);
+//        a = init_empty(factor2.limbNumber);
         b = factor2;
+        ALLOCA_EMPTY(a, factor2.limbNumber)
         SUM_IN_FIRSTARG(a, factor1)
 
     }
@@ -391,10 +392,12 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
 
 
     int b_u_array_size = 1 << w;//(int) pow(2, w);
-    LIMB b_u_index = 0;
+//    LIMB b_u_index = 0;
     MPN b_u[b_u_array_size];
 
-    b_u[0] = init(&b_u_index, 1);
+//    b_u[0] = init(&b_u_index, 1);
+    ALLOCA_EMPTY(b_u[0], 1)
+    b_u[0].num[0] = 0;
     MPN cc;
 //    cc = init_empty(2 * T);
     ALLOCA_EMPTY(cc, (2 * T));
