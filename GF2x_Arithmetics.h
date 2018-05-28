@@ -57,7 +57,7 @@
 
 #define LIMB uint64_t
 
-#define POWER_OF_TWO 5000//12800000//100 000limb64 //5000  //m : maximum degree
+#define POWER_OF_TWO 12800000//100 000limb64 //5000  //m : maximum degree
 
 #define LIMB_BITS (sizeof(LIMB) * 8) // W
 
@@ -79,7 +79,7 @@ MPN init_null();
 
 MPN init(LIMB A[], unsigned sizeA);
 
-void MP_free(MPN poly);
+void static inline MP_free(MPN poly);
 
 void print(char *str, MPN poly);
 

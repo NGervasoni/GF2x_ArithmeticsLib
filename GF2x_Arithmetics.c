@@ -309,9 +309,9 @@ void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2) {
             MP_bitShiftLeft(&b, 1);
     }
 
-    unsigned counter = 0;
-
-    LEAD_ZERO_LIMB_COUNT(counter, c);
+//    unsigned counter = 0;
+//
+//    LEAD_ZERO_LIMB_COUNT(counter, c);
 
 
     MP_free(*result);
@@ -329,7 +329,10 @@ void MP_CombLtoRMul(MPN *result, MPN factor1, MPN factor2) {
 
     MPN c;
 //    c = init_empty(2 * T);
-    ALLOCA_EMPTY(c, (2 * T));
+//    ALLOCA_EMPTY(c, (2 * T));
+    if (factor1.limbNumber > factor2.limbNumber) {
+        ALLOCA_EMPTY(c, (2 * factor1.limbNumber));
+    } else ALLOCA_EMPTY(c, (2 * factor2.limbNumber));
     // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
     for (int k = LIMB_BITS - 1; k >= 0; --k) {
 
@@ -372,12 +375,15 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
         a = factor1;
         ALLOCA_EMPTY(b, factor1.limbNumber)//= init_empty(factor1.limbNumber);
         SUM_IN_FIRSTARG(b, factor2)
+        ALLOCA_EMPTY(c, 2 * factor1.limbNumber)
+
 
     } else {
 //        a = init_empty(factor2.limbNumber);
         b = factor2;
         ALLOCA_EMPTY(a, factor2.limbNumber)
         SUM_IN_FIRSTARG(a, factor1)
+        ALLOCA_EMPTY(c, 2 * factor2.limbNumber)
 
     }
 
@@ -388,7 +394,7 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
 
 //    c = init_empty(2 * T);
 
-    ALLOCA_EMPTY(c, 2 * T)
+//    ALLOCA_EMPTY(c, 2 * T)
 
 
     int b_u_array_size = 1 << w;//(int) pow(2, w);
@@ -400,7 +406,7 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
     b_u[0].num[0] = 0;
     MPN cc;
 //    cc = init_empty(2 * T);
-    ALLOCA_EMPTY(cc, (2 * T));
+    ALLOCA_EMPTY(cc, (2 * b.limbNumber));
     MPN bubu;// = init(&b_u_index, 1);
     ALLOCA_EMPTY(bubu, 1)
     for (int l = 1; l < b_u_array_size; ++l) {
