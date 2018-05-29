@@ -462,7 +462,7 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
         for (int j = a.limbNumber - 1; j >= 0; --j) {
 
 
-            LIMB w_bits_value = ((a.num[j] >> (k * w)) & ((LIMB)(1 << w) - 1));
+            LIMB w_bits_value = ((a.num[j] >> (k * w)) & ((LIMB) (1 << w) - 1));
 
             MPN bu = b_u[w_bits_value];
 
@@ -484,26 +484,26 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
 } // end MP_CombLtoRMul_w
 /*---------------------------------------------------------------------------*/
 
-void karatsuba(MPN *c, MPN factor1, MPN factor2) {
+void karatsuba(MPN *c, MPN *factor1, MPN *factor2) {
 
 
-    if (factor1.limbNumber == 1 && factor2.limbNumber == 1) {
+    if ((*factor1).limbNumber == 1 && (*factor2).limbNumber == 1) {
 
         // ---------------------MP_CombRtoLMul---------------------
 
         MPN b;
 
-        ALLOCA_EMPTY(b, (factor2.limbNumber + 1));
-        SUM_IN_FIRSTARG(b, factor2)
+        ALLOCA_EMPTY(b, ((*factor2).limbNumber + 1));
+        SUM_IN_FIRSTARG(b, (*factor2))
         // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
         for (int k = 0; k < LIMB_BITS; ++k) {
             // j seleziona a ogni ciclo il limb
-            for (int j = factor1.limbNumber - 1; j >= 0; --j) {
+            for (int j = (*factor1).limbNumber - 1; j >= 0; --j) {
                 // shift di k posizioni (k=0 => seleziono bit più a destra)
-                if (factor1.num[j] >> k & 0x1) {
+                if ((*factor1).num[j] >> k & 0x1) {
 
                     for (int i = 0; i < b.limbNumber; ++i) {
-                        c->num[c->limbNumber - 1 - (factor1.limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
+                        c->num[c->limbNumber - 1 - ((*factor1).limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
                     }
                 }
             }
@@ -524,18 +524,21 @@ void karatsuba(MPN *c, MPN factor1, MPN factor2) {
 
     ALLOCA_EMPTY(zero, 1)
 
-    if (factor1.limbNumber > factor2.limbNumber) {
-        a = factor1;
-//        b = init_empty(factor1.limbNumber);
-        ALLOCA_EMPTY(b, factor1.limbNumber)
-        SUM_IN_FIRSTARG(b, factor2)
+    if ((*factor1).limbNumber > (*factor2).limbNumber) {
+//        a = (*factor1);
+        ALLOCA(a, (*factor1).num, (*factor1).limbNumber)
+//        b = init_empty((*factor1).limbNumber);
+        ALLOCA_EMPTY(b, (*factor1).limbNumber)
+        SUM_IN_FIRSTARG(b, (*factor2))
 
     } else {
-//        a = init_empty(factor2.limbNumber);
-        ALLOCA_EMPTY(a, factor2.limbNumber)
+//        a = init_empty((*factor2).limbNumber);
+        ALLOCA_EMPTY(a, (*factor2).limbNumber)
 
-        b = factor2;
-        SUM_IN_FIRSTARG(a, factor1)
+//        b = (*factor2);
+        ALLOCA(b, (*factor2).num, (*factor2).limbNumber)
+
+        SUM_IN_FIRSTARG(a, (*factor1))
     }
 
 
@@ -545,19 +548,29 @@ void karatsuba(MPN *c, MPN factor1, MPN factor2) {
 
         ALLOCA_EMPTY(first, c_limbs)
         ALLOCA_EMPTY(third, c_limbs)
-        ALLOCA_EMPTY(a01perb01, c->limbNumber);
+        ALLOCA_EMPTY(a01perb01, c_limbs);
 
 
-        ALLOCA(A_0, &a.num[0], (a.limbNumber - (a.limbNumber) / 2))
-        ALLOCA(A_1, &a.num[a.limbNumber - (a.limbNumber) / 2], (a.limbNumber / 2))
-        ALLOCA(B_0, &b.num[0], (b.limbNumber - (b.limbNumber / 2)))
-        ALLOCA(B_1, &b.num[b.limbNumber - (b.limbNumber) / 2], (b.limbNumber / 2))
+//        ALLOCA(A_0, &a.num[0], (a.limbNumber - (a.limbNumber) / 2))
+//        ALLOCA(A_1, &a.num[a.limbNumber - (a.limbNumber) / 2], (a.limbNumber / 2))
+//        ALLOCA(B_0, &b.num[0], (b.limbNumber - (b.limbNumber / 2)))
+//        ALLOCA(B_1, &b.num[b.limbNumber - (b.limbNumber) / 2], (b.limbNumber / 2))
+
+
+        A_0.num = &a.num[0];
+        A_0.limbNumber = (a.limbNumber - (a.limbNumber) / 2);
+        A_1.num = &a.num[a.limbNumber - (a.limbNumber) / 2];
+        A_1.limbNumber = a.limbNumber / 2;
+        B_0.num = &b.num[0];
+        B_0.limbNumber = (b.limbNumber - (b.limbNumber / 2));
+        B_1.num = &b.num[b.limbNumber - (b.limbNumber) / 2];
+        B_1.limbNumber = b.limbNumber / 2;
 
 
         if (isZero(A_0) || isZero(B_0))
             first = zero; //ok,tanto non è mai uno store per risultato
         else
-            karatsuba(&first, A_0, B_0);
+            karatsuba(&first, &A_0, &B_0);
 
         SUM_IN_FIRSTARG((*c), first);
 //        limbShiftLeft(c, b.limbNumber - b.limbNumber % 2);
@@ -573,15 +586,29 @@ void karatsuba(MPN *c, MPN factor1, MPN factor2) {
         }
 //       ------------------ end limbshiftLeft --------------------
 
-        karatsuba(&third, A_1, B_1);
+        karatsuba(&third, &A_1, &B_1);
 
         SUM_IN_FIRSTARG(A_0, A_1)
         SUM_IN_FIRSTARG(B_0, B_1)
 
         ALLOCA(second, third.num, c_limbs)
+
+//        ALLOCA(second, third.num, (third.limbNumber))
+
+////        ALLOCA_EMPTY(second,c_limbs)
+//        second.num = (LIMB *) alloca((third.limbNumber) * sizeof(LIMB));
+//        second.limbNumber = third.limbNumber;
+//
+//
+//        for(int i=0; i< c_limbs; i++){
+//            second.num[i] = third.num[i];
+//        }
+
+//        SUM_IN_FIRSTARG(second,third)
+
         SUM_IN_FIRSTARG(second, first)
 
-        karatsuba(&a01perb01, A_0, B_0);
+        karatsuba(&a01perb01, &A_0, &B_0);
 
 
         SUM_IN_FIRSTARG(second, a01perb01);
@@ -614,9 +641,7 @@ void karatsuba(MPN *c, MPN factor1, MPN factor2) {
 void MP_KaratsubaMul(MPN *result, MPN factor1, MPN factor2) {
 
     if (factor1.limbNumber == 1 && factor2.limbNumber == 1) {
-
         MP_CombRtoLMul(result, factor1, factor2);
-
     }
 
     MPN c;
@@ -628,7 +653,7 @@ void MP_KaratsubaMul(MPN *result, MPN factor1, MPN factor2) {
         ALLOCA_EMPTY(c, 2 * factor2.limbNumber);
     }
 
-    karatsuba(&c, factor1, factor2);
+    karatsuba(&c, &factor1, &factor2);
 
     signed counter = 0;
     for (int i = 0; i < c.limbNumber - 1; ++i) {
@@ -709,7 +734,7 @@ void MP_Reduce(MPN *result, MPN polyToreduce, MPN irr_poly) {
         }
     }
 
-    r.num[limb] = r.num[limb] ^ (LIMB)(1 << temp);
+    r.num[limb] = r.num[limb] ^ (LIMB) (1 << temp);
 
 // Precomputation of z^k * r(z)
     for (int k = 0; k < LIMB_BITS; ++k) {
@@ -1016,52 +1041,23 @@ static inline void MP_exactDivXtwoPlusXFour(MPN poly) {
 
 /*---------------------------------------------------------------------------*/
 
-void toom3(MPN *result, MPN factor1, MPN factor2) {
+void toom3(MPN *result, MPN *factor1, MPN *factor2) {
 
 
     PRINTF(("\n------toom3-------"));
 
-//    MPN u = init(factor1.num, factor1.limbNumber), v = init(factor2.num, factor2.limbNumber);
-
     MPN u, v;
 
-    MPN temp;
-
     int counter1 = 0, counter2 = 0;
-    LEAD_ZERO_LIMB_COUNT(counter1, factor1)
-    LEAD_ZERO_LIMB_COUNT(counter2, factor2)
+    LEAD_ZERO_LIMB_COUNT(counter1, (*factor1))
+    LEAD_ZERO_LIMB_COUNT(counter2, (*factor2))
 
-    if (counter1 == factor1.limbNumber && counter2 == factor2.limbNumber) {
+    if (counter1 == (*factor1).limbNumber && counter2 == (*factor2).limbNumber) {
         SUM_IN_FIRSTARG(*result, *result);
         return;
     }
 
-    if (factor1.limbNumber - counter1 > factor2.limbNumber - counter2) {
-
-        ALLOCA(u, &(factor1.num[counter1]), factor1.limbNumber - counter1)
-        ALLOCA_EMPTY(v, factor1.limbNumber - counter1)
-        if (counter2 != factor2.limbNumber) {
-            temp.num = &factor2.num[counter2];
-            temp.limbNumber = factor2.limbNumber - counter2;
-            SUM_IN_FIRSTARG(v, temp)
-        }
-    } else {
-        ALLOCA(v, &(factor2.num[counter2]), factor2.limbNumber - counter2)
-        ALLOCA_EMPTY(u, factor2.limbNumber - counter2)
-        if (counter1 != factor1.limbNumber) {
-            temp.num = &factor1.num[counter1];
-            temp.limbNumber = factor1.limbNumber - counter1;
-            SUM_IN_FIRSTARG(u, temp)
-        }
-
-
-    }
-
-    T3(("\nu: ", u));
-    T3(("\nv: ", v));
-    T3(("\nresult: ", *result));
-
-    if (u.limbNumber < 3 && v.limbNumber < 3) {
+    if ((*factor1).limbNumber - counter1 < 3 && (*factor2).limbNumber - counter2 < 3) {
 
         // ---------------------MP_CombRtoLMul---------------------
 
@@ -1070,21 +1066,21 @@ void toom3(MPN *result, MPN factor1, MPN factor2) {
 
         ALLOCA_EMPTY(c, result->limbNumber)
 
-        ALLOCA_EMPTY(b, (v.limbNumber + 1));
-        SUM_IN_FIRSTARG(b, v)
+        ALLOCA_EMPTY(b, ((*factor2).limbNumber - counter2 + 1));
+//        SUM_IN_FIRSTARG(b, (*factor2))
+        for (int j = 0, i = 0; j < b.limbNumber && i < (*factor2).limbNumber - counter2; ++j, ++i) {
+            b.num[b.limbNumber - 1 - j] = (*factor2).num[(*factor2).limbNumber - 1 - i];
+        }
 
-//        if (u.limbNumber > v.limbNumber) {
-//            ALLOCA_EMPTY(c, (2 * u.limbNumber));
-//        } else ALLOCA_EMPTY(c, (2 * v.limbNumber));
         // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
         for (int k = 0; k < LIMB_BITS; ++k) {
             // j seleziona a ogni ciclo il limb
-            for (int j = u.limbNumber - 1; j >= 0; --j) {
+            for (int j = (*factor1).limbNumber - 1; j >= 0; --j) {
                 // shift di k posizioni (k=0 => seleziono bit più a destra)
-                if (u.num[j] >> k & 0x1) { //OKKK!!
+                if ((*factor1).num[j] >> k & 0x1) { //OKKK!!
 
                     for (int i = 0; i < b.limbNumber; ++i) {
-                        c.num[c.limbNumber - 1 - (u.limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
+                        c.num[c.limbNumber - 1 - ((*factor1).limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
                     }
                 }
             }
@@ -1113,110 +1109,69 @@ void toom3(MPN *result, MPN factor1, MPN factor2) {
 
 
     MPN u2, u1, u0, v2, v1, v0;
-//    MPN *ptrMax, *ptrMin;
 
 
-//    if (u.limbNumber >= v.limbNumber) {
-//        ptrMax = &u;
-//        ptrMin = &v;
-//    } else {
-//        ptrMax = &v;
-//        ptrMin = &u;
-//    }
-
-//    MP_Addition(ptrMin, init_empty(ptrMax->limbNumber), *ptrMin);
-
-    unsigned u_limbs_div3 = u.limbNumber / 3;
-    int bih; //number of limbs for each part
-
-    if (u_limbs_div3 * 3 == u.limbNumber) {
-
-        bih = u_limbs_div3;
-
-//        u2 = init(&(u.num[0]), u_limbs_div3);
-//        u1 = init(&(u.num[u_limbs_div3]), u_limbs_div3);
-//        u0 = init(&(u.num[2 * u_limbs_div3]), u_limbs_div3);
-
-        ALLOCA(u2, &(u.num[0]), u_limbs_div3)
-        ALLOCA(u1, &(u.num[u_limbs_div3]), u_limbs_div3)
-        ALLOCA(u0, &(u.num[2 * u_limbs_div3]), u_limbs_div3)
-//
-//        v2 = init(&(v.num[0]), u_limbs_div3);
-//        v1 = init(&(v.num[u_limbs_div3]), u_limbs_div3);
-//        v0 = init(&(v.num[2 * u_limbs_div3]), u_limbs_div3);
+    unsigned factor_limbs_div3;
+    unsigned bih; //number of limbs for each part
+    int check;
 
 
-        ALLOCA(v2, &(v.num[0]), u_limbs_div3)
-        ALLOCA(v1, &(v.num[u_limbs_div3]), u_limbs_div3)
-        ALLOCA(v0, &(v.num[2 * u_limbs_div3]), u_limbs_div3)
+    if ((*factor1).limbNumber - counter1 > (*factor2).limbNumber - counter2) {
+
+        factor_limbs_div3 = ((*factor1).limbNumber - counter1) / 3;
+
+        check = ((*factor1).limbNumber - counter1);
+
+    } else {
+        factor_limbs_div3 = ((*factor2).limbNumber - counter2) / 3;
+
+        check = (*factor2).limbNumber - counter2;
+
+    }
+
+
+    if (factor_limbs_div3 * 3 == check) {
+
+        bih = factor_limbs_div3;
 
 
     } else {
 
-        unsigned blocks = 2 + 2 * u_limbs_div3;
-        bih = u_limbs_div3 + 1;
-
-//        u2 = init(&(u.num[0]), u.limbNumber - blocks);
-//        u1 = init(&(u.num[u.limbNumber - blocks]), u_limbs_div3 + 1);
-//        u0 = init(&(u.num[u.limbNumber - u_limbs_div3 - 1]), u_limbs_div3 + 1);
-
-        ALLOCA_EMPTY(u2, bih);
-        ALLOCA_EMPTY(u1, bih);
-        ALLOCA_EMPTY(u0, bih);
-
-
-        PRINTF(("\n-- %d", u.limbNumber - blocks));
-        for (int i = 0; i < (int) (u.limbNumber - blocks); ++i) {
-            PRINTF(("\nhere i:%d", i));
-            u2.num[bih - (u.limbNumber - blocks) + i] ^= u.num[i];
-        }
-
-        PRINTF(("\nu.limbNumber - blocks: %d", u.limbNumber - blocks));
-        PRINTF(("\nu.limbNumber - u_limbs_div3 - 1: %d", u.limbNumber - u_limbs_div3 - 1));
-
-        for (int j = 0; j < (int) u_limbs_div3 + 1; ++j) {
-//            PRINTF(("\nhere2"));
-//            PRINTF(("\n%lu", u.num[u.limbNumber - u_limbs_div3 - 1 + j]));
-            u1.num[j] ^= u.num[u.limbNumber - blocks + j];
-            u0.num[j] ^= u.num[u.limbNumber - u_limbs_div3 - 1 + j];
-        }
-
-//        ALLOCA(u2, &(u.num[0]), u_limbs_div3)
-//        ALLOCA(u1, &(u.num[u_limbs_div3]), u_limbs_div3)
-//        ALLOCA(u0, &(u.num[2 * u_limbs_div3]), u_limbs_div3)
-
-
-//        v2 = init(&(v.num[0]), v.limbNumber - blocks);
-//        v1 = init(&(v.num[v.limbNumber - blocks]), u_limbs_div3 + 1);
-//        v0 = init(&(v.num[v.limbNumber - u_limbs_div3 - 1]), u_limbs_div3 + 1);
-
-
-        ALLOCA_EMPTY(v2, bih);
-        ALLOCA_EMPTY(v1, bih);
-        ALLOCA_EMPTY(v0, bih);
-
-
-        for (int i = 0; i < (int) (v.limbNumber - blocks); ++i) {
-
-            v2.num[bih - (v.limbNumber - blocks) + i] ^= v.num[i];
-        }
-        for (int j = 0; j < (int) u_limbs_div3 + 1; ++j) {
-//            PRINTF(("\nhere2"));
-//            PRINTF(("\n%lu", u.num[u.limbNumber - blocks + j]));
-//            PRINTF(("\n%lu", u.num[u.limbNumber - u_limbs_div3 - 1 + j]));
-            v1.num[j] ^= v.num[v.limbNumber - blocks + j];
-            v0.num[j] ^= v.num[v.limbNumber - u_limbs_div3 - 1 + j];
-        }
+        bih = factor_limbs_div3 + 1;
 
 
     }
 
-    PRINTF(("\nu_limbs_div3: %d", u_limbs_div3));
-    PRINTF(("\nbih: %d", bih));
 
+    ALLOCA_EMPTY(u, 3 * bih)
+    for (int j = 0, i = 0; j < u.limbNumber && i < (*factor1).limbNumber; ++j, ++i) {
+        u.num[u.limbNumber - 1 - j] = (*factor1).num[(*factor1).limbNumber - 1 - i];
+    }
+
+    ALLOCA_EMPTY(v, 3 * bih)
+    for (int j = 0, i = 0; j < v.limbNumber && i < (*factor2).limbNumber; ++j, ++i) {
+        v.num[v.limbNumber - 1 - j] = (*factor2).num[(*factor2).limbNumber - 1 - i];
+    }
+
+    u2.num = &(u.num[0]);
+    u2.limbNumber = bih;
+    u1.num = &(u.num[bih]);
+    u1.limbNumber = bih;
+    u0.num = &(u.num[2 * bih]);
+    u0.limbNumber = bih;
+
+
+    v2.num = &(v.num[0]);
+    v2.limbNumber = bih;
+    v1.num = &(v.num[bih]);
+    v1.limbNumber = bih;
+    v0.num = &(v.num[2 * bih]);
+    v0.limbNumber = bih;
 
     T3(("\nu: ", u));
     T3(("\nv: ", v));
+    T3(("\nresult: ", *result));
+
 
     T3(("\nu0: ", u0));
     T3(("\nu1: ", u1));
@@ -1226,13 +1181,6 @@ void toom3(MPN *result, MPN factor1, MPN factor2) {
     T3(("\nv0: ", v0));
     T3(("\nv1: ", v1));
     T3(("\nv2: ", v2));
-
-
-//    MPN w = init_null();
-//    MPN w0 = init_null(), w1 = init_null(), w2 = init_null(), w3 = init_null(), w4 = init_null();
-
-//    LIMB xterzapiuuno_limb[] = {0x9};
-//    MPN xterzapiuuno = init(xterzapiuuno_limb, 1);
 
 
     MPN w;
@@ -1245,12 +1193,10 @@ void toom3(MPN *result, MPN factor1, MPN factor2) {
     ALLOCA_EMPTY(w4, 4 * bih)
 
     LIMB xterzapiuuno_limb[] = {0x9};
-//    MPN xterzapiuuno = init(xterzapiuuno_limb, 1);
     MPN xterzapiuuno;
     ALLOCA_EMPTY(xterzapiuuno, 4 * bih)
     xterzapiuuno.num[xterzapiuuno.limbNumber - 1] = 0x9;
 
-//    ALLOCA(xterzapiuuno, xterzapiuuno_limb, 4 * bih) //probabilmente basta meno, anche 3
 
 
     T3(("\nw0: ", w0));
@@ -1260,11 +1206,6 @@ void toom3(MPN *result, MPN factor1, MPN factor2) {
     T3(("\nw4: ", w4));
 
     //EVALUATION
-
-//    temp = init_null();
-//    MP_Addition(&temp, u0, u1);
-//    MP_Addition(&w3, temp, u2);
-
 
 
     //    ----------------------------------- w3 -----------------------------------
@@ -1294,7 +1235,7 @@ void toom3(MPN *result, MPN factor1, MPN factor2) {
 //    MP_Toom3(&w1, w3, w2);
 
 
-    toom3(&w1, w3, w2);
+    toom3(&w1, &w3, &w2);
 
     T3(("\nw1: ", w1));
 
@@ -1380,7 +1321,7 @@ void toom3(MPN *result, MPN factor1, MPN factor2) {
 
 
 
-    toom3(&w3, w3, w2);
+    toom3(&w3, &w3, &w2);
     T3(("\n---------w3: ", w3));
 
 
@@ -1388,15 +1329,15 @@ void toom3(MPN *result, MPN factor1, MPN factor2) {
 
 
 //    MP_Toom3(&w2, w0, w4);
-    toom3(&w2, w0, w4);
+    toom3(&w2, &w0, &w4);
 
     T3(("\nw2: ", w2));
 
 
-    toom3(&w4, u2, v2);
+    toom3(&w4, &u2, &v2);
     T3(("\nw4: ", w4));
 
-    toom3(&w0, u0, v0);
+    toom3(&w0, &u0, &v0);
 
 //    toom3(&w0, u0, v0);
     T3(("\nw0: ", w0));
@@ -1422,7 +1363,7 @@ void toom3(MPN *result, MPN factor1, MPN factor2) {
 //    MP_Addition(&temp, w2, w3);
     SUM_IN_FIRSTARG(w2, w3)
 
-    toom3(&xterzapiuuno, xterzapiuuno, w4);
+    toom3(&xterzapiuuno, &xterzapiuuno, &w4);
 //    MP_Toom3(&xterzapiuuno, xterzapiuuno, w4);
 
 //    MP_Addition(&w2, temp, xterzapiuuno);
@@ -1536,34 +1477,6 @@ void toom3(MPN *result, MPN factor1, MPN factor2) {
 
     T3(("\nresult: ", *result));
 
-//    w = init(w.num, w.limbNumber);
-//    w0 = init(w0.num, w0.limbNumber);
-//    w1 = init(w1.num, w1.limbNumber);
-//    w2 = init(w2.num, w2.limbNumber);
-//    w3 = init(w3.num, w3.limbNumber);
-//    w4 = init(w4.num, w4.limbNumber);
-
-//    limbShiftLeft(&w1, 1 * bih);
-//    MP_Addition(&w, w, w1);
-
-//
-//    T3(("\nw: ", w));
-//
-//    limbShiftLeft(&w2, 2 * bih);
-//    MP_Addition(&w, w, w2);
-//    T3(("\nw: ", w));
-//
-//    limbShiftLeft(&w3, 3 * bih);
-//    MP_Addition(&w, w, w3);
-//    T3(("\nw: ", w));
-//
-//    limbShiftLeft(&w4, 4 * bih);
-//    MP_Addition(&w, w, w4);
-//    T3(("\nw: ", w));
-//
-//
-//    removeLeadingZeroLimbs(&w);
-//    *result = w;
 } // end MP_Toom3
 
 
@@ -1583,31 +1496,11 @@ void MP_Toom3(MPN *result, MPN factor1, MPN factor2) {
 
     MPN partial_result;
 
-//    int counter1 = 0, counter2 = 0;
-//    LEAD_ZERO_LIMB_COUNT(counter1, factor1)
-//    LEAD_ZERO_LIMB_COUNT(counter2, factor2)
-//
-//    if (factor1.limbNumber - counter1 > factor2.limbNumber - counter2) {
-////        ALLOCA(u, &(factor1.num[counter1]), factor1.limbNumber - counter1)
-//        ALLOCA_EMPTY(v, factor1.limbNumber - counter1)
-////        temp.num = &factor2.num[counter2];
-////        temp.limbNumber = factor2.limbNumber - counter2;
-////        SUM_IN_FIRSTARG(v, temp)
-//    } else {
-////        ALLOCA(v, &(factor2.num[counter2]), factor2.limbNumber - counter2)
-//        ALLOCA_EMPTY(u, factor2.limbNumber - counter2)
-////        temp.num = &factor1.num[counter1];
-////        temp.limbNumber = factor1.limbNumber - counter1;
-////        SUM_IN_FIRSTARG(u, temp)
-//
-//    }
-
-
 
     INIT_TO_FIT_MUL(partial_result, factor1, factor2)
 
     T3(("\npar_res: ", partial_result));
-    toom3(&partial_result, factor1, factor2);
+    toom3(&partial_result, &factor1, &factor2);
 //    toom3(result, factor1, factor2);
 
 
@@ -1618,78 +1511,46 @@ void MP_Toom3(MPN *result, MPN factor1, MPN factor2) {
 
 /*---------------------------------------------------------------------------*/
 
-void toom4(MPN *result, MPN factor1, MPN factor2) {
+void toom4(MPN *result, MPN *factor1, MPN *factor2) {
 
     PRINTF(("\n------tooom4-------"));
-
-
-//    MPN u = init(factor1.num, factor1.limbNumber);
-//    MPN v = init(factor2.num, factor2.limbNumber);
-
 
     MPN u, v;
 
     MPN t;
 
     int counter1 = 0, counter2 = 0;
-    LEAD_ZERO_LIMB_COUNT(counter1, factor1)
-    LEAD_ZERO_LIMB_COUNT(counter2, factor2)
-//    print("\nPREu: ", factor1);
-//    print("\nPREv: ", factor2);
-    if (counter1 == factor1.limbNumber && counter2 == factor2.limbNumber) {
+    LEAD_ZERO_LIMB_COUNT(counter1, *factor1)
+    LEAD_ZERO_LIMB_COUNT(counter2, *factor2)
+
+    if (counter1 == (*factor1).limbNumber && counter2 == (*factor2).limbNumber) {
         SUM_IN_FIRSTARG(*result, *result);
         return;
     }
 
-    if (factor1.limbNumber - counter1 > factor2.limbNumber - counter2) {
 
-        ALLOCA(u, &(factor1.num[counter1]), factor1.limbNumber - counter1)
-        ALLOCA_EMPTY(v, factor1.limbNumber - counter1)
-        if (counter2 != factor2.limbNumber) {
-            t.num = &factor2.num[counter2];
-            t.limbNumber = factor2.limbNumber - counter2;
-            SUM_IN_FIRSTARG(v, t)
-        }
-    } else {
-        ALLOCA(v, &(factor2.num[counter2]), factor2.limbNumber - counter2)
-        ALLOCA_EMPTY(u, factor2.limbNumber - counter2)
-        if (counter1 != factor1.limbNumber) {
-            t.num = &factor1.num[counter1];
-            t.limbNumber = factor1.limbNumber - counter1;
-            SUM_IN_FIRSTARG(u, t)
-        }
-
-
-    }
-
-//    print("\nu: ", u);
-//    print("\nv: ", v);
-//    print("\nresult: ", *result);
-
-
-    if (u.limbNumber < 4 && v.limbNumber < 4) {
+    if ((*factor1).limbNumber - counter1 < 4 && (*factor2).limbNumber - counter2 < 4) {
         // ---------------------MP_CombRtoLMul---------------------
-        PRINTF(("\nCOMB"));
         MPN b;
         MPN c;
 
         ALLOCA_EMPTY(c, result->limbNumber)
 
-        ALLOCA_EMPTY(b, (v.limbNumber + 1));
-        SUM_IN_FIRSTARG(b, v)
+        ALLOCA_EMPTY(b, ((*factor2).limbNumber - counter2 + 1));
+//        SUM_IN_FIRSTARG(b, (*factor2))
+        for (int j = 0, i = 0; j < b.limbNumber && i < (*factor2).limbNumber - counter2; ++j, ++i) {
+            b.num[b.limbNumber - 1 - j] = (*factor2).num[(*factor2).limbNumber - 1 - i];
+        }
 
-//        if (u.limbNumber > v.limbNumber) {
-//            ALLOCA_EMPTY(c, (2 * u.limbNumber));
-//        } else ALLOCA_EMPTY(c, (2 * v.limbNumber));
         // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
         for (int k = 0; k < LIMB_BITS; ++k) {
             // j seleziona a ogni ciclo il limb
-            for (int j = u.limbNumber - 1; j >= 0; --j) {
+            for (int j = (*factor1).limbNumber - 1; j >= 0; --j) {
                 // shift di k posizioni (k=0 => seleziono bit più a destra)
-                if (u.num[j] >> k & 0x1) { //OKKK!!
+                if ((*factor1).num[j] >> k & 0x1) { //OKKK!!
 
                     for (int i = 0; i < b.limbNumber; ++i) {
-                        c.num[c.limbNumber - 1 - (u.limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
+                        c.num[c.limbNumber - 1 - ((*factor1).limbNumber - 1 - j) - i] ^= b.num[b.limbNumber - 1 - i];
                     }
                 }
             }
@@ -1706,8 +1567,6 @@ void toom4(MPN *result, MPN factor1, MPN factor2) {
 //
         SUM_IN_FIRSTARG(*result, *result); //azzero contenuto di result
         SUM_IN_FIRSTARG(*result, c);
-
-        T4(("\nres: ", *result));
 
 //        ALLOCA(*result,c.num,c.limbNumber) // non va
 
@@ -1726,118 +1585,171 @@ void toom4(MPN *result, MPN factor1, MPN factor2) {
 
     MPN u3, u2, u1, u0, v3, v2, v1, v0, w, w0, w1, w2, w3, w4, w5, w6;
 
-    unsigned u_limbs_div4;
-    int bih;
 
-//    LIMB xpiuuno_limb[] = {0x3};
-//    MPN xpiuuno = init(xpiuuno_limb, 1);
     MPN xpiuuno;
     ALLOCA_EMPTY(xpiuuno, 1);
     xpiuuno.num[0] = 0x3;
 
 
-    u_limbs_div4 = u.limbNumber / 4;
+    unsigned factor_limbs_div4;
+    unsigned bih; //number of limbs for each part
+    int check;
+
+    factor_limbs_div4 = u.limbNumber / 4;
 
 
-    if (u_limbs_div4 * 4 == u.limbNumber) {
+    if ((*factor1).limbNumber - counter1 > (*factor2).limbNumber - counter2) {
 
-//        u3 = init(&(u.num[0]), u_limbs_div4);
-//        u2 = init(&(u.num[u_limbs_div4]), u_limbs_div4);
-//        u1 = init(&(u.num[2 * u_limbs_div4]), u_limbs_div4);
-//        u0 = init(&(u.num[3 * u_limbs_div4]), u_limbs_div4);
-//
-//        v3 = init(&(v.num[0]), u_limbs_div4);
-//        v2 = init(&(v.num[u_limbs_div4]), u_limbs_div4);
-//        v1 = init(&(v.num[2 * u_limbs_div4]), u_limbs_div4);
-//        v0 = init(&(v.num[3 * u_limbs_div4]), u_limbs_div4);
+        factor_limbs_div4 = ((*factor1).limbNumber - counter1) / 4;
 
+        check = ((*factor1).limbNumber - counter1);
 
-        ALLOCA(u3, &(u.num[0]), u_limbs_div4)
-        ALLOCA(u2, &(u.num[u_limbs_div4]), u_limbs_div4)
-        ALLOCA(u1, &(u.num[2 * u_limbs_div4]), u_limbs_div4)
-        ALLOCA(u0, &(u.num[3 * u_limbs_div4]), u_limbs_div4)
+    } else {
+        factor_limbs_div4 = ((*factor2).limbNumber - counter2) / 4;
 
-        ALLOCA(v3, &(v.num[0]), u_limbs_div4)
-        ALLOCA(v2, &(v.num[u_limbs_div4]), u_limbs_div4)
-        ALLOCA(v1, &(v.num[2 * u_limbs_div4]), u_limbs_div4)
-        ALLOCA(v0, &(v.num[3 * u_limbs_div4]), u_limbs_div4)
+        check = (*factor2).limbNumber - counter2;
 
+    }
 
-        bih = u_limbs_div4;
+    if (factor_limbs_div4 * 4 == check) {
+
+        bih = factor_limbs_div4;
 
     } else {
 
-        unsigned remaining_limbs = u.limbNumber;
-        unsigned blocks = u_limbs_div4 + 1;;
-
-//        u0 = init(&(u.num[u.limbNumber - u_limbs_div4 - 1]), blocks);
-//        v0 = init(&(v.num[v.limbNumber - u_limbs_div4 - 1]), blocks);
-
-//        u1 = init(&(u.num[u.limbNumber - 2 * blocks]), blocks);
-//        v1 = init(&(v.num[v.limbNumber - 2 * blocks]), blocks);
-
-        ALLOCA(u0, &(u.num[u.limbNumber - u_limbs_div4 - 1]), blocks)
-        ALLOCA(v0, &(v.num[v.limbNumber - u_limbs_div4 - 1]), blocks)
-
-        ALLOCA(u1, &(u.num[u.limbNumber - 2 * blocks]), blocks)
-        ALLOCA(v1, &(v.num[v.limbNumber - 2 * blocks]), blocks)
-
-
-        remaining_limbs -= 2 * blocks;
-
-        if (remaining_limbs >= blocks) {
-//            u2 = init(&(u.num[u.limbNumber - 3 * blocks]), blocks);
-//            v2 = init(&(v.num[v.limbNumber - 3 * blocks]), blocks);
-
-            ALLOCA(u2, &(u.num[u.limbNumber - 3 * blocks]), blocks)
-            ALLOCA(v2, &(v.num[v.limbNumber - 3 * blocks]), blocks)
-
-
-            remaining_limbs -= blocks;
-            if (remaining_limbs > 0) {
-//                u3 = init(&(u.num[0]), remaining_limbs);
-//                v3 = init(&(v.num[0]), remaining_limbs);
-
-                ALLOCA(u3, &(u.num[0]), remaining_limbs)
-                ALLOCA(v3, &(v.num[0]), remaining_limbs)
-            } else {
-//                u3 = init_empty(1);
-//                v3 = init_empty(1);
-                ALLOCA_EMPTY(u3, 1)
-                ALLOCA_EMPTY(v3, 1)
-            }
-        } else if (remaining_limbs > 0) {
-//            u2 = init(&(u.num[0]), remaining_limbs);
-//            u3 = init_empty(1);
-//
-//            v2 = init(&(v.num[0]), remaining_limbs);
-//            v3 = init_empty(1);
-
-            ALLOCA(u2, &(u.num[0]), remaining_limbs)
-            ALLOCA(v2, &(v.num[0]), remaining_limbs)
-            ALLOCA_EMPTY(u3, 1)
-            ALLOCA_EMPTY(v3, 1)
-        } else {
-//            u2 = init_empty(1);
-//            u3 = init_empty(1);
-//
-//            v2 = init_empty(1);
-//            v3 = init_empty(1);
-
-
-            ALLOCA_EMPTY(u2, 1)
-            ALLOCA_EMPTY(v2, 1)
-            ALLOCA_EMPTY(u3, 1)
-            ALLOCA_EMPTY(v3, 1)
-        }
-
-
-        bih = u_limbs_div4 + 1;
+        bih = factor_limbs_div4 + 1;
 
     }
 
 
-    PRINTF(("\nu_limbs_div4: %d", u_limbs_div4));
+    ALLOCA_EMPTY(u, 4 * bih)
+    for (int j = 0, i = 0; j < u.limbNumber && i < (*factor1).limbNumber; ++j, ++i) {
+        u.num[u.limbNumber - 1 - j] = (*factor1).num[(*factor1).limbNumber - 1 - i];
+    }
+
+    ALLOCA_EMPTY(v, 4 * bih)
+    for (int j = 0, i = 0; j < v.limbNumber && i < (*factor2).limbNumber; ++j, ++i) {
+        v.num[v.limbNumber - 1 - j] = (*factor2).num[(*factor2).limbNumber - 1 - i];
+    }
+
+    u3.num = &(u.num[0]);
+    u3.limbNumber = bih;
+    u2.num = &(u.num[bih]);
+    u2.limbNumber = bih;
+    u1.num = &(u.num[2 * bih]);
+    u1.limbNumber = bih;
+    u0.num = &(u.num[3 * bih]);
+    u0.limbNumber = bih;
+
+    v3.num = &(v.num[0]);
+    v3.limbNumber = bih;
+    v2.num = &(v.num[bih]);
+    v2.limbNumber = bih;
+    v1.num = &(v.num[2 * bih]);
+    v1.limbNumber = bih;
+    v0.num = &(v.num[3 * bih]);
+    v0.limbNumber = bih;
+
+
+//    if (factor_limbs_div4 * 4 == u.limbNumber) {
+//
+////        u3 = init(&(u.num[0]), factor_limbs_div4);
+////        u2 = init(&(u.num[factor_limbs_div4]), factor_limbs_div4);
+////        u1 = init(&(u.num[2 * factor_limbs_div4]), factor_limbs_div4);
+////        u0 = init(&(u.num[3 * factor_limbs_div4]), factor_limbs_div4);
+////
+////        v3 = init(&(v.num[0]), factor_limbs_div4);
+////        v2 = init(&(v.num[factor_limbs_div4]), factor_limbs_div4);
+////        v1 = init(&(v.num[2 * factor_limbs_div4]), factor_limbs_div4);
+////        v0 = init(&(v.num[3 * factor_limbs_div4]), factor_limbs_div4);
+//
+//
+//        ALLOCA(u3, &(u.num[0]), factor_limbs_div4)
+//        ALLOCA(u2, &(u.num[factor_limbs_div4]), factor_limbs_div4)
+//        ALLOCA(u1, &(u.num[2 * factor_limbs_div4]), factor_limbs_div4)
+//        ALLOCA(u0, &(u.num[3 * factor_limbs_div4]), factor_limbs_div4)
+//
+//        ALLOCA(v3, &(v.num[0]), factor_limbs_div4)
+//        ALLOCA(v2, &(v.num[factor_limbs_div4]), factor_limbs_div4)
+//        ALLOCA(v1, &(v.num[2 * factor_limbs_div4]), factor_limbs_div4)
+//        ALLOCA(v0, &(v.num[3 * factor_limbs_div4]), factor_limbs_div4)
+//
+//
+//        bih = factor_limbs_div4;
+//
+//    } else {
+//
+//        unsigned remaining_limbs = u.limbNumber;
+//        unsigned blocks = factor_limbs_div4 + 1;;
+//
+////        u0 = init(&(u.num[u.limbNumber - factor_limbs_div4 - 1]), blocks);
+////        v0 = init(&(v.num[v.limbNumber - factor_limbs_div4 - 1]), blocks);
+//
+////        u1 = init(&(u.num[u.limbNumber - 2 * blocks]), blocks);
+////        v1 = init(&(v.num[v.limbNumber - 2 * blocks]), blocks);
+//
+//        ALLOCA(u0, &(u.num[u.limbNumber - factor_limbs_div4 - 1]), blocks)
+//        ALLOCA(v0, &(v.num[v.limbNumber - factor_limbs_div4 - 1]), blocks)
+//
+//        ALLOCA(u1, &(u.num[u.limbNumber - 2 * blocks]), blocks)
+//        ALLOCA(v1, &(v.num[v.limbNumber - 2 * blocks]), blocks)
+//
+//
+//        remaining_limbs -= 2 * blocks;
+//
+//        if (remaining_limbs >= blocks) {
+////            u2 = init(&(u.num[u.limbNumber - 3 * blocks]), blocks);
+////            v2 = init(&(v.num[v.limbNumber - 3 * blocks]), blocks);
+//
+//            ALLOCA(u2, &(u.num[u.limbNumber - 3 * blocks]), blocks)
+//            ALLOCA(v2, &(v.num[v.limbNumber - 3 * blocks]), blocks)
+//
+//
+//            remaining_limbs -= blocks;
+//            if (remaining_limbs > 0) {
+////                u3 = init(&(u.num[0]), remaining_limbs);
+////                v3 = init(&(v.num[0]), remaining_limbs);
+//
+//                ALLOCA(u3, &(u.num[0]), remaining_limbs)
+//                ALLOCA(v3, &(v.num[0]), remaining_limbs)
+//            } else {
+////                u3 = init_empty(1);
+////                v3 = init_empty(1);
+//                ALLOCA_EMPTY(u3, 1)
+//                ALLOCA_EMPTY(v3, 1)
+//            }
+//        } else if (remaining_limbs > 0) {
+////            u2 = init(&(u.num[0]), remaining_limbs);
+////            u3 = init_empty(1);
+////
+////            v2 = init(&(v.num[0]), remaining_limbs);
+////            v3 = init_empty(1);
+//
+//            ALLOCA(u2, &(u.num[0]), remaining_limbs)
+//            ALLOCA(v2, &(v.num[0]), remaining_limbs)
+//            ALLOCA_EMPTY(u3, 1)
+//            ALLOCA_EMPTY(v3, 1)
+//        } else {
+////            u2 = init_empty(1);
+////            u3 = init_empty(1);
+////
+////            v2 = init_empty(1);
+////            v3 = init_empty(1);
+//
+//
+//            ALLOCA_EMPTY(u2, 1)
+//            ALLOCA_EMPTY(v2, 1)
+//            ALLOCA_EMPTY(u3, 1)
+//            ALLOCA_EMPTY(v3, 1)
+//        }
+//
+//
+//        bih = factor_limbs_div4 + 1;
+//
+//    }
+
+
+    PRINTF(("\nfactor_limbs_div4: %d", factor_limbs_div4));
     PRINTF(("\nbih: %d", bih));
 
 
@@ -1861,23 +1773,7 @@ void toom4(MPN *result, MPN factor1, MPN factor2) {
     ALLOCA_EMPTY(w4, 4 * bih)
     ALLOCA_EMPTY(w5, 4 * bih)
     ALLOCA_EMPTY(w6, 4 * bih)
-//    ALLOCA_EMPTY(temp, 6 * bih)
-//    ALLOCA_EMPTY(w0, 6 * bih)
-//    ALLOCA_EMPTY(w1, 6 * bih)
-//    ALLOCA_EMPTY(w2, 6 * bih)
-//    ALLOCA_EMPTY(w3, 6 * bih)
-//    ALLOCA_EMPTY(w4, 6 * bih)
-//    ALLOCA_EMPTY(w5, 6 * bih)
-//    ALLOCA_EMPTY(w6, 6 * bih)
 
-//    ALLOCA_EMPTY(temp, 20 * bih)
-//    ALLOCA_EMPTY(w0, 20 * bih)
-//    ALLOCA_EMPTY(w1, 20 * bih)
-//    ALLOCA_EMPTY(w2, 20 * bih)
-//    ALLOCA_EMPTY(w3, 20 * bih)
-//    ALLOCA_EMPTY(w4, 20 * bih)
-//    ALLOCA_EMPTY(w5, 20 * bih)
-//    ALLOCA_EMPTY(w6, 20 * bih)
 
 
     //EVALUATION
@@ -1907,9 +1803,8 @@ void toom4(MPN *result, MPN factor1, MPN factor2) {
     T4(("\nw2 ", w2));
 
 
-    toom4(&w3, w1, w2);
+    toom4(&w3, &w1, &w2);
 
-    PRINTF(("\nAAAAAAAAAA-------------"));
     T4(("\nw0: ", w0));
     T4(("\nw1: ", w1));
     T4(("\nw2: ", w2));
@@ -1970,7 +1865,7 @@ void toom4(MPN *result, MPN factor1, MPN factor2) {
 
 
 //    print("\npretwmp: ",temp);
-    toom4(&temp, u3, xpiuuno);
+    toom4(&temp, &u3, &xpiuuno);
     T4(("\ntemp ", temp));
 
 //    print("\nw0: ",w0);
@@ -1998,7 +1893,7 @@ void toom4(MPN *result, MPN factor1, MPN factor2) {
     T4(("\nw4 ", w4));
 
 
-    toom4(&temp, v3, xpiuuno);
+    toom4(&temp, &v3, &xpiuuno);
     T4(("\ntemp ", temp));
     SUM_IN_FIRSTARG(temp, w6)
 //    MP_Addition(&temp, w6, temp);
@@ -2029,11 +1924,11 @@ void toom4(MPN *result, MPN factor1, MPN factor2) {
     T4(("\nw6 ", w6));
 
 
-    toom4(&w5, w5, w4);
+    toom4(&w5, &w5, &w4);
     T4(("\nw5 ", w5));
 
 
-    toom4(&w4, w6, w0);
+    toom4(&w4, &w6, &w0);
     T4(("\nw4 ", w4));
 
 
@@ -2154,16 +2049,16 @@ void toom4(MPN *result, MPN factor1, MPN factor2) {
 //    MP_Addition(&w6, v3, w6);
     T4(("\nw6 ", w6));
 
-    toom4(&w1, w1, w2);
+    toom4(&w1, &w1, &w2);
     T4(("\nw1 ", w1));
 
-    toom4(&w2, w0, w6);
+    toom4(&w2, &w0, &w6);
     T4(("\nw2 ", w2));
 
-    toom4(&w6, u3, v3);
+    toom4(&w6, &u3, &v3);
     T4(("\nw6 ", w6));
 
-    toom4(&w0, u0, v0);
+    toom4(&w0, &u0, &v0);
     T4(("\nw0 ", w0));
 
 
@@ -2442,53 +2337,8 @@ void toom4(MPN *result, MPN factor1, MPN factor2) {
 
     T4(("\nw: ", w));
 
-
-//    w = init(w.num, w.limbNumber);
-//    w0 = init(w0.num, w0.limbNumber);
-//    w1 = init(w1.num, w1.limbNumber);
-//    w2 = init(w2.num, w2.limbNumber);
-//    w3 = init(w3.num, w3.limbNumber);
-//    w4 = init(w4.num, w4.limbNumber);
-//    w5 = init(w5.num, w5.limbNumber);
-//    w6 = init(w6.num, w6.limbNumber);
     PRINTF(("\n-------FINAL------"));
-//    limbShiftLeft(&w1, 1 * bih);
-//    MP_Addition(&w, w0, w1);
-//
-//    T4(("\nw ", w));
 
-
-//    limbShiftLeft(&w2, 2 * bih);
-//    MP_Addition(&w, w, w2);
-//    T4(("\nw ", w));
-//
-//    limbShiftLeft(&w3, 3 * bih);
-//    MP_Addition(&w, w, w3);
-//    T4(("\nw ", w));
-
-//    limbShiftLeft(&w4, 4 * bih);
-//    MP_Addition(&w, w, w4);
-//    T4(("\nw ", w));
-
-//    limbShiftLeft(&w5, 5 * bih);
-//    MP_Addition(&w, w, w5);
-//    T4(("\nw ", w));
-
-//    limbShiftLeft(&w6, 6 * bih);
-//    MP_Addition(&w, w, w6);
-//    T4(("\nw ", w));
-
-
-
-
-
-
-//
-
-//    removeLeadingZeroLimbs(&w);
-//
-////    MP_free(*result);
-//    *result = init_empty(result->limbNumber);
     SUM_IN_FIRSTARG(*result, *result)
     SUM_IN_FIRSTARG(*result, w)
 }
@@ -2510,7 +2360,7 @@ void MP_Toom4(MPN *result, MPN factor1, MPN factor2) {
     INIT_TO_FIT_MUL(partial_result, factor1, factor2)
 
     T4(("\npar_res: ", partial_result));
-    toom4(&partial_result, factor1, factor2);
+    toom4(&partial_result, &factor1, &factor2);
 
 
     MP_free(*result);
