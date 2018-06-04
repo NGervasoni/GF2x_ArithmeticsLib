@@ -36,8 +36,20 @@
                                     memset((poly).num,0,(size) * sizeof(LIMB));\
                                     }
 
-#define ALLOCA(poly, limb_pnt, size) { (poly).num = (LIMB *) alloca((size) * sizeof(LIMB)); \
-                                       (poly).limbNumber = size; \
+
+//#define ALLOCA_EMPTY(poly, size) {  (poly).num = (LIMB *) alloca((size) * sizeof(LIMB)); \
+//                                    (poly).limbNumber = size; \
+//                                    for(int i=0; i < size; i++){ \
+//                                        poly.num[i] = 0; \
+//                                    }\
+//                                    }
+
+//#define ALLOCA(poly, limb_pnt, size) { (poly).num = (LIMB *) alloca((size) * sizeof(LIMB)); \
+//                                       (poly).limbNumber = size; \
+//                                       memcpy((poly).num, limb_pnt, (size) * sizeof(LIMB)); \
+//}
+
+#define ALLOCA(poly, limb_pnt, size) { ALLOCA_EMPTY(poly,size)\
                                        memcpy((poly).num, limb_pnt, (size) * sizeof(LIMB)); \
 }
 
@@ -50,6 +62,15 @@
 
 #define INIT_TO_FIT_MUL(c, a, b) {  if ((a).limbNumber > (b).limbNumber) ALLOCA_EMPTY(c, (2 * (a).limbNumber)) \
                                 else ALLOCA_EMPTY(c, (2 * (b).limbNumber))};
+
+
+#define LEFTSHIFT(a, bitsToShift){int j; \
+LIMB mask = ~(((LIMB) 0x01 << (LIMB_BITS - bitsToShift)) - 1); \
+for (j = 0; j < a.limbNumber - 1; j++) { \
+a.num[j] <<= bitsToShift; \
+a.num[j] |= (a.num[j + 1] & mask) >> (LIMB_BITS - bitsToShift); \
+}\
+a.num[j] <<= bitsToShift;}\
 
 /*---------------------------------------------------------------------------*/
 
