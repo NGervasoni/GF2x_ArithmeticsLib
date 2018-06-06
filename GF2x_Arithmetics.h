@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <stdint-gcc.h>
 
+/*---------------------------------------------------------------------------*/
 
 //#define PRGDEBUG
 
@@ -25,6 +26,8 @@
 #define T3(x)
 
 #endif
+
+/*---------------------------------------------------------------------------*/
 
 #define SUM_IN_FIRST_ARG(a, b) { int offset = (a).limbNumber - (b).limbNumber; \
                                 for (int i = 0; i < (b).limbNumber; i++) { \
@@ -87,6 +90,9 @@ a.num[j] <<= bitsToShift;}\
 
 #define S ((LIMB_BITS * T) - POWER_OF_TWO) // number of leftmost unused bit
 
+#define KARATSUBA_MIN_LIMBS 10
+
+#define TOOM_MIN_LIMBS 10
 
 typedef struct gf2x_mp_t {  // to be though in big-endian notation: num[0] stores the most significant bit
     LIMB *restrict num;
