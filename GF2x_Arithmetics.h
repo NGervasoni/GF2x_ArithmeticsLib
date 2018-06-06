@@ -26,9 +26,10 @@
 
 #endif
 
-#define SUM_IN_FIRSTARG(a, b) { for (int i = 0; i < (b).limbNumber; i++) { \
-                                    (a).num[(a).limbNumber - (b).limbNumber + i] = (a).num[(a).limbNumber - (b).limbNumber + i] ^ (b).num[i]; \
-                                    }}
+#define SUM_IN_FIRST_ARG(a, b) { int offset = (a).limbNumber - (b).limbNumber; \
+                                for (int i = 0; i < (b).limbNumber; i++) { \
+                                (a).num[offset + i] = (a).num[offset + i] ^ (b).num[i]; \
+                                }}
 
 
 #define ALLOCA_EMPTY(poly, size) {  (poly).num = (LIMB *) alloca((size) * sizeof(LIMB)); \
