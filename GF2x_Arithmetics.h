@@ -83,13 +83,11 @@ static inline void sum_in_first_arg(MPN a, MPN b);
 
 static inline unsigned lead_zero_limbs_count(MPN poly);
 
-static inline void bitShiftLeft(MPN a, unsigned bitsToShift);
-
-void MP_bitShiftLeft_checkSize(MPN *a, int bitsToShift);
+static inline void MP_bitShiftLeft(MPN *a, int bitsToShift, bool checkSize);
 
 static inline void MP_bitShiftRight(MPN *a);
 
-static inline void limbShiftLeft(MPN *a, int n);
+static inline void limbShiftLeft(MPN *a, int n, bool checkSize);
 
 void removeLeadingZeroLimbs(MPN *poly);
 
