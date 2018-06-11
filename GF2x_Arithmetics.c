@@ -111,10 +111,6 @@ void MP_free(MPN poly) {
 void MP_Addition(MPN *result, MPN a, MPN b) {
 
 
-//    if (!properSize(a) || !properSize(b)) {
-//        fprintf(stderr, "Wrong polynomial dimension! Aborting...\n");
-//        exit(EXIT_FAILURE);
-//    }
     MPN c;
 
     if (a.limbNumber > b.limbNumber) {
