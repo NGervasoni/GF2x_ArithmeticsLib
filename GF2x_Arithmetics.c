@@ -2,6 +2,39 @@
 #include <assert.h>
 #include "GF2x_Arithmetics.h"
 
+static inline unsigned lead_zero_limbs_count(MPN poly) {
+    unsigned counter = 0;
+    for (int i = 0; i < poly.limbNumber; ++i) {
+        if (poly.num[i] == 0) {
+            counter++;
+        } else
+            break;
+    }
+    return counter;
+}
+
+
+static inline void sum_in_first_arg(MPN a, MPN b) {
+    int offset = (a).limbNumber - (b).limbNumber;
+    for (int i = 0; i < (b).limbNumber; i++) {
+
+        (a).num[offset + i] = (a).num[offset + i] ^ (b).num[i];
+
+    }
+}
+
+
+static inline void bitShiftLeft(MPN a, unsigned bitsToShift) {
+    int j;
+    LIMB mask = ~(((LIMB) 0x01 << (LIMB_BITS - (bitsToShift))) - 1);
+    for (j = 0; j < (a).limbNumber - 1; j++) {
+        (a).num[j] <<= (bitsToShift);
+        (a).num[j] |= ((a).num[j + 1] & mask) >> (LIMB_BITS - bitsToShift);
+    }
+    (a).num[j] <<= (bitsToShift);
+}
+
+
 uint16_t precomputed[256];
 
 bool init_precomputed = 0;
@@ -113,7 +146,7 @@ void MP_Addition(MPN *result, MPN a, MPN b) {
 /*---------------------------------------------------------------------------*/
 
 
-static inline void MP_bitShiftLeft(MPN *a, const int bitsToShift) {
+void MP_bitShiftLeft_checkSize(MPN *a, int bitsToShift) {
 
 
     if (bitsToShift == 0) {
@@ -143,7 +176,7 @@ static inline void MP_bitShiftLeft(MPN *a, const int bitsToShift) {
 //        MP_Addition(a, *a, c);
         MPN c;
         ALLOCA_EMPTY(c, a->limbNumber + 1)
-        SUM_IN_FIRST_ARG(c, *a);
+        sum_in_first_arg(c, *a);
         MP_free(*a);
 
         *a = init(c.num, c.limbNumber);
@@ -192,9 +225,7 @@ static inline void MP_bitShiftRight(MPN *a) {
 
 static inline void limbShiftLeft(MPN *a, int n) {
 
-    int counter = 0;
-
-    LEAD_ZERO_LIMB_COUNT(counter, *a);
+    int counter = lead_zero_limbs_count(*a);
     if (counter >= n) {
         for (int j = 0; j < a->limbNumber - n; ++j) {
             a->num[j] = a->num[j + n];
@@ -236,8 +267,8 @@ void MP_ShiftAndAddMul(MPN *result, MPN factor1, MPN factor2, MPN irr_poly) {
     ALLOCA_EMPTY(b, T);
 
 
-    SUM_IN_FIRST_ARG(a, factor1);
-    SUM_IN_FIRST_ARG(b, factor2);
+    sum_in_first_arg(a, factor1);
+    sum_in_first_arg(b, factor2);
 
 
     unsigned shiftToHigherOne = (LIMB_BITS - S);
@@ -259,11 +290,11 @@ void MP_ShiftAndAddMul(MPN *result, MPN factor1, MPN factor2, MPN irr_poly) {
 
             } else {
 
-                MP_bitShiftLeft(&b, 1);
+                MP_bitShiftLeft_checkSize(&b, 1);
                 if (b.num[0] >> shiftToHigherOne) {
-                    SUM_IN_FIRST_ARG(b, irr_poly);//MP_Addition(&b, b, irr_poly);
+                    sum_in_first_arg(b, irr_poly);//MP_Addition(&b, b, irr_poly);
                 }
-                if ((a.num[i] >> j) & 0x1) SUM_IN_FIRST_ARG(c, b); //MP_Addition(&c, c, b);
+                if ((a.num[i] >> j) & 0x1) sum_in_first_arg(c, b); //MP_Addition(&c, c, b);
             }
 
         }
@@ -287,7 +318,7 @@ void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2) {
 //    MP_Addition(&b, factor2, init_empty(factor2.limbNumber + 1));
 
     ALLOCA_EMPTY(b, (factor2.limbNumber + 1));
-    SUM_IN_FIRST_ARG(b, factor2)
+    sum_in_first_arg(b, factor2);
 //    c = init_empty(2 * T);
 //    ALLOCA_EMPTY(c,(2*T))
     if (factor1.limbNumber > factor2.limbNumber) {
@@ -305,12 +336,12 @@ void MP_CombRtoLMul(MPN *result, MPN factor1, MPN factor2) {
                 }
             }
         }
-        if (k != LIMB_BITS - 1) LEFTSHIFT(b, 1);
+        if (k != LIMB_BITS - 1) bitShiftLeft(b, 1);
     }
 
 //    unsigned counter = 0;
 //
-//    LEAD_ZERO_LIMB_COUNT(counter, c);
+//    lead_zero_limbs_count(&counter, c);
 
 
     MP_free(*result);
@@ -350,9 +381,9 @@ void MP_CombLtoRMul(MPN *result, MPN factor1, MPN factor2) {
             }
         }
         if (k != 0) {
-            LEFTSHIFT(c, 1);
+            bitShiftLeft(c, 1);
         }
-//            MP_bitShiftLeft(&c, 1); //non sfora mai
+//            MP_bitShiftLeft_checkSize(&c, 1); //non sfora mai
 
 
     }
@@ -377,7 +408,7 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
     if (factor1.limbNumber > factor2.limbNumber) {
         a = factor1;
         ALLOCA_EMPTY(b, factor1.limbNumber)//= init_empty(factor1.limbNumber);
-        SUM_IN_FIRST_ARG(b, factor2)
+        sum_in_first_arg(b, factor2);
         ALLOCA_EMPTY(c, 2 * factor1.limbNumber)
 
 
@@ -385,7 +416,7 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
 //        a = init_empty(factor2.limbNumber);
         b = factor2;
         ALLOCA_EMPTY(a, factor2.limbNumber)
-        SUM_IN_FIRST_ARG(a, factor1)
+        sum_in_first_arg(a, factor1);
         ALLOCA_EMPTY(c, 2 * factor2.limbNumber)
 
     }
@@ -441,23 +472,22 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
                 }
             }
             if (k != 0) {
-                LEFTSHIFT(cc, 1);
+                bitShiftLeft(cc, 1);
             }
-//                MP_bitShiftLeft(&cc, 1); //non sfora mai
+//                MP_bitShiftLeft_checkSize(&cc, 1); //non sfora mai
         }
 //        MP_free(b_u[l]);
 //        b_u[l] = init(cc.num, cc.limbNumber);
 
 
         //      ----------------- MP_CombLtoRMul(&b_u[l], b, init(&b_u_index, 1)) -----------------
-        int counter = 0;
-        LEAD_ZERO_LIMB_COUNT(counter, cc)
+        int counter = lead_zero_limbs_count(cc);
         ALLOCA_EMPTY(b_u[l], cc.limbNumber - counter);
         for (int m = counter; m < cc.limbNumber; ++m) {
             b_u[l].num[m - counter] = cc.num[m];
         }
 //        removeLeadingZeroLimbs(&b_u[l]);
-        SUM_IN_FIRST_ARG(cc, cc)
+        sum_in_first_arg(cc, cc);
     }
 
 
@@ -478,9 +508,9 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
 
         }
         if (k != 0) {
-            LEFTSHIFT(c, w);
+            bitShiftLeft(c, w);
         }
-//            MP_bitShiftLeft(&c, w);
+//            MP_bitShiftLeft_checkSize(&c, w);
 
 
     }
@@ -491,14 +521,12 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
 } // end MP_CombLtoRMul_w
 /*---------------------------------------------------------------------------*/
 
-void karatsuba(MPN *c, MPN *factor1, MPN *factor2) {
+void karatsuba(MPN *restrict c, MPN *restrict factor1, MPN *restrict factor2) {
 
-    int counter1 = 0, counter2 = 0;
-    LEAD_ZERO_LIMB_COUNT(counter1, (*factor1))
-    LEAD_ZERO_LIMB_COUNT(counter2, (*factor2))
+    int counter1 = lead_zero_limbs_count(*factor1), counter2 = lead_zero_limbs_count(*factor2);
 
     if (counter1 == (*factor1).limbNumber && counter2 == (*factor2).limbNumber) {
-        SUM_IN_FIRST_ARG(*c, *c);
+        sum_in_first_arg(*c, *c);
         return;
     }
 
@@ -509,7 +537,7 @@ void karatsuba(MPN *c, MPN *factor1, MPN *factor2) {
         MPN b;
 
         ALLOCA_EMPTY(b, ((*factor2).limbNumber + 1));
-        SUM_IN_FIRST_ARG(b, (*factor2))
+        sum_in_first_arg(b, (*factor2));
         // k rappresenta il numero di shift per selezionare il bit da controllare in ogni LIMB
         for (int k = 0; k < LIMB_BITS; ++k) {
             // j seleziona a ogni ciclo il limb
@@ -523,8 +551,8 @@ void karatsuba(MPN *c, MPN *factor1, MPN *factor2) {
                 }
             }
             if (k != LIMB_BITS - 1)
-                // MP_bitShiftLeft(&b, 1);
-            LEFTSHIFT(b, 1);
+                // MP_bitShiftLeft_checkSize(&b, 1);
+                bitShiftLeft(b, 1);
 
         }
 
@@ -564,7 +592,6 @@ void karatsuba(MPN *c, MPN *factor1, MPN *factor2) {
     }
 
 
-
     if (a.limbNumber != 1 && b.limbNumber != 1) {
 
         MPN first, second, third, a01perb01, A_0, A_1, B_0, B_1;
@@ -589,7 +616,7 @@ void karatsuba(MPN *c, MPN *factor1, MPN *factor2) {
         else
             karatsuba(&first, &A_0, &B_0);
 
-        SUM_IN_FIRST_ARG((*c), first);
+        sum_in_first_arg((*c), first);
 
         //        ------------------ limbshiftLeft -----------------------
         unsigned shift = b.limbNumber - b.limbNumber % 2;
@@ -604,17 +631,17 @@ void karatsuba(MPN *c, MPN *factor1, MPN *factor2) {
 
         karatsuba(&third, &A_1, &B_1);
 
-        SUM_IN_FIRST_ARG(A_0, A_1)
-        SUM_IN_FIRST_ARG(B_0, B_1)
+        sum_in_first_arg(A_0, A_1);
+        sum_in_first_arg(B_0, B_1);
 
         ALLOCA(second, third.num, c_limbs)
 
-        SUM_IN_FIRST_ARG(second, first)
+        sum_in_first_arg(second, first);
 
         karatsuba(&a01perb01, &A_0, &B_0);
 
 
-        SUM_IN_FIRST_ARG(second, a01perb01);
+        sum_in_first_arg(second, a01perb01);
 
         //        ------------------ limbshiftLeft -----------------------
         shift = (b.limbNumber) / 2;
@@ -627,8 +654,8 @@ void karatsuba(MPN *c, MPN *factor1, MPN *factor2) {
         }
 //       ------------------ end limbshiftLeft --------------------
 
-        SUM_IN_FIRST_ARG((*c), third)
-        SUM_IN_FIRST_ARG((*c), second)
+        sum_in_first_arg((*c), third);
+        sum_in_first_arg((*c), second);
     }
 
 
@@ -735,7 +762,7 @@ void MP_Reduce(MPN *result, MPN polyToreduce, MPN irr_poly) {
 // Precomputation of z^k * r(z)
     for (int k = 0; k < LIMB_BITS; ++k) {
         u[k] = init(r.num, r.limbNumber);
-        MP_bitShiftLeft(&r, 1);
+        MP_bitShiftLeft_checkSize(&r, 1);
     }
 
     tot_bits = (LIMB_BITS * polyToreduce.limbNumber); //number of bitsToShift in polyToreduce
@@ -818,8 +845,8 @@ MPN MP_Inversion_EE(MPN a, MPN irr_poly) {
         shifted_g2 = init(g2.num, g2.limbNumber);
 
         for (int l = 0; l < j; ++l) {
-            MP_bitShiftLeft(&shifted_v, 1);
-            MP_bitShiftLeft(&shifted_g2, 1);
+            MP_bitShiftLeft_checkSize(&shifted_v, 1);
+            MP_bitShiftLeft_checkSize(&shifted_g2, 1);
         }
 
         MP_Addition(&u, u, shifted_v);
@@ -914,8 +941,7 @@ static inline void MP_exactDivOnePlusX(MPN poly) {
     LIMB t = 0;
     long i;
 
-    int counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, poly)
+    int counter = lead_zero_limbs_count(poly);
     if (poly.limbNumber == counter) {
         return;
     }
@@ -942,8 +968,7 @@ static inline void MP_exactDivXPlusXFour(MPN c) {
     long i;
     unsigned shift;
 
-    int counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, c)
+    int counter = lead_zero_limbs_count(c);
     MPN reverse;
     if (c.limbNumber == counter) {
         return;
@@ -968,7 +993,7 @@ static inline void MP_exactDivXPlusXFour(MPN c) {
     }
 
 
-    SUM_IN_FIRST_ARG(c, c)
+    sum_in_first_arg(c, c);
 
     for (int j = counter, k = reverse.limbNumber - 1; j < c.limbNumber; k--, ++j) {
         c.num[j] = reverse.num[k];
@@ -991,8 +1016,7 @@ static inline void MP_exactDivXtwoPlusXFour(MPN poly) {
     MPN reverse;
 
 
-    int counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, poly)
+    int counter = lead_zero_limbs_count(poly);
 
     if (poly.limbNumber == counter) {
         return;
@@ -1020,7 +1044,7 @@ static inline void MP_exactDivXtwoPlusXFour(MPN poly) {
         t >>= (LIMB_BITS - 2);
     }
 
-    SUM_IN_FIRST_ARG(poly, poly)
+    sum_in_first_arg(poly, poly);
     for (int j = counter, k = reverse.limbNumber - 1; j < poly.limbNumber; k--, ++j) {
         poly.num[j] = reverse.num[k];
     }
@@ -1032,19 +1056,17 @@ static inline void MP_exactDivXtwoPlusXFour(MPN poly) {
 
 /*---------------------------------------------------------------------------*/
 
-void toom3(MPN *result, MPN *factor1, MPN *factor2) {
+void toom3(MPN *restrict result, MPN *restrict factor1, MPN *restrict factor2) {
 
 
     PRINTF(("\n------toom3-------"));
 
     MPN u, v;
 
-    int counter1 = 0, counter2 = 0;
-    LEAD_ZERO_LIMB_COUNT(counter1, (*factor1))
-    LEAD_ZERO_LIMB_COUNT(counter2, (*factor2))
+    int counter1 = lead_zero_limbs_count(*factor1), counter2 = lead_zero_limbs_count(*factor2);
 
     if (counter1 == (*factor1).limbNumber && counter2 == (*factor2).limbNumber) {
-        SUM_IN_FIRST_ARG(*result, *result);
+        sum_in_first_arg(*result, *result);
         return;
     }
 
@@ -1058,7 +1080,7 @@ void toom3(MPN *result, MPN *factor1, MPN *factor2) {
         ALLOCA_EMPTY(c, result->limbNumber)
 
         ALLOCA_EMPTY(b, ((*factor2).limbNumber - counter2 + 1));
-//        SUM_IN_FIRST_ARG(b, (*factor2))
+//        sum_in_first_arg(b, (*factor2));
         for (int j = 0, i = 0; j < b.limbNumber && i < (*factor2).limbNumber - counter2; ++j, ++i) {
             b.num[b.limbNumber - 1 - j] = (*factor2).num[(*factor2).limbNumber - 1 - i];
         }
@@ -1076,17 +1098,15 @@ void toom3(MPN *result, MPN *factor1, MPN *factor2) {
                 }
             }
             if (k != LIMB_BITS - 1)
-//                MP_bitShiftLeft(&b, 1);
-            LEFTSHIFT(b, 1);
+//                MP_bitShiftLeft_checkSize(&b, 1);
+                bitShiftLeft(b, 1);
         }
 
 
-        unsigned counter = 0;
+        unsigned counter = lead_zero_limbs_count(c);
 
-        LEAD_ZERO_LIMB_COUNT(counter, c);
-
-        SUM_IN_FIRST_ARG(*result, *result); //azzero contenuto di result
-        SUM_IN_FIRST_ARG(*result, c);
+        sum_in_first_arg(*result, *result); //azzero contenuto di result
+        sum_in_first_arg(*result, c);
 
 
         // ----------------------end MP_CombRtoLMul----------------
@@ -1181,11 +1201,9 @@ void toom3(MPN *result, MPN *factor1, MPN *factor2) {
     ALLOCA_EMPTY(w3, 4 * bih)
     ALLOCA_EMPTY(w4, 4 * bih)
 
-    LIMB xterzapiuuno_limb[] = {0x9};
     MPN xterzapiuuno;
     ALLOCA_EMPTY(xterzapiuuno, 4 * bih)
     xterzapiuuno.num[xterzapiuuno.limbNumber - 1] = 0x9;
-
 
 
     T3(("\nw0: ", w0));
@@ -1199,22 +1217,17 @@ void toom3(MPN *result, MPN *factor1, MPN *factor2) {
 
     //    ----------------------------------- w3 -----------------------------------
 
-    SUM_IN_FIRST_ARG(w3, u0)
-    SUM_IN_FIRST_ARG(w3, u1)
-    SUM_IN_FIRST_ARG(w3, u2)
+    sum_in_first_arg(w3, u0);
+    sum_in_first_arg(w3, u1);
+    sum_in_first_arg(w3, u2);
 
     T3(("\nw3: ", w3));
 
-
-
     //    ----------------------------------- w2 -----------------------------------
-//
-//    MP_Addition(&temp, v0, v1);
-//    MP_Addition(&w2, temp, v2);
 
-    SUM_IN_FIRST_ARG(w2, v0)
-    SUM_IN_FIRST_ARG(w2, v1)
-    SUM_IN_FIRST_ARG(w2, v2)
+    sum_in_first_arg(w2, v0);
+    sum_in_first_arg(w2, v1);
+    sum_in_first_arg(w2, v2);
 
     T3(("\nw2: ", w2));
 
@@ -1230,18 +1243,14 @@ void toom3(MPN *result, MPN *factor1, MPN *factor2) {
 
 
     MPN u2perx2;
-//    u2perx2= init(u2.num, u2.limbNumber);
     ALLOCA_EMPTY(u2perx2, u2.limbNumber + 1);
-    SUM_IN_FIRST_ARG(u2perx2, u2)
-//    MP_bitShiftLeft(&u2perx2, 2);
-    LEFTSHIFT(u2perx2, 2)
+    sum_in_first_arg(u2perx2, u2);
+    bitShiftLeft(u2perx2, 2);
 
     MPN u1perx;
-//    u1perx= init(u1.num, u1.limbNumber);
     ALLOCA_EMPTY(u1perx, u1.limbNumber + 1);
-    SUM_IN_FIRST_ARG(u1perx, u1)
-//    MP_bitShiftLeft(&u1perx, 1);
-    LEFTSHIFT(u1perx, 1)
+    sum_in_first_arg(u1perx, u1);
+    bitShiftLeft(u1perx, 1);
 
     T3(("\nu2perx2: ", u2perx2));
     T3(("\nu1perx: ", u1perx));
@@ -1250,58 +1259,45 @@ void toom3(MPN *result, MPN *factor1, MPN *factor2) {
     //    ----------------------------------- w0 -----------------------------------
 
 
-//    MP_Addition(&w0, u2perx2, u1perx);
-
-    SUM_IN_FIRST_ARG(w0, u2perx2)
-    SUM_IN_FIRST_ARG(w0, u1perx)
+    sum_in_first_arg(w0, u2perx2);
+    sum_in_first_arg(w0, u1perx);
 
     T3(("\nw0: ", w0));
 
 
     MPN v2perx2;
-//    = init(v2.num, v2.limbNumber);
     ALLOCA_EMPTY(v2perx2, v2.limbNumber + 1)
-    SUM_IN_FIRST_ARG(v2perx2, v2)
-//    MP_bitShiftLeft(&v2perx2, 2);
-    LEFTSHIFT(v2perx2, 2)
+    sum_in_first_arg(v2perx2, v2);
+    bitShiftLeft(v2perx2, 2);
 
     MPN v1perx;
-//    = init(v1.num, v1.limbNumber);
     ALLOCA_EMPTY(v1perx, v1.limbNumber + 1)
-    SUM_IN_FIRST_ARG(v1perx, v1)
-//    MP_bitShiftLeft(&v1perx, 1);
-    LEFTSHIFT(v1perx, 1)
-    // --------
+    sum_in_first_arg(v1perx, v1);
+    bitShiftLeft(v1perx, 1);
+
     //    ----------------------------------- w4 -----------------------------------
 
 
-//    MP_Addition(&w4, v2perx2, v1perx);
-
-    SUM_IN_FIRST_ARG(w4, v2perx2)
-    SUM_IN_FIRST_ARG(w4, v1perx)
+    sum_in_first_arg(w4, v2perx2);
+    sum_in_first_arg(w4, v1perx);
 
 
     T3(("\nw4: ", w4));
 
-//    MP_Addition(&w3, w3, w0);
-    SUM_IN_FIRST_ARG(w3, w0)
+    sum_in_first_arg(w3, w0);
 
     T3(("\nw3: ", w3));
 
-//    MP_Addition(&w2, w2, w4);
-    SUM_IN_FIRST_ARG(w2, w4)
+    sum_in_first_arg(w2, w4);
 
 
     T3(("\nw2: ", w2));
 
-//    MP_Addition(&w0, w0, u0);
-    SUM_IN_FIRST_ARG(w0, u0)
+    sum_in_first_arg(w0, u0);
 
     T3(("\nw0: ", w0));
 
-//    MP_Addition(&w4, w4, v0);
-    SUM_IN_FIRST_ARG(w4, v0)
-
+    sum_in_first_arg(w4, v0);
 
 
     toom3(&w3, &w3, &w2);
@@ -1322,25 +1318,22 @@ void toom3(MPN *result, MPN *factor1, MPN *factor2) {
 
     //INTERPOLATION
 
-    SUM_IN_FIRST_ARG(w3, w2)
+    sum_in_first_arg(w3, w2);
     T3(("\nw3: ", w3));
 
 
-//    MP_Addition(&w2, w2, w0);
-    SUM_IN_FIRST_ARG(w2, w0)
+    sum_in_first_arg(w2, w0);
     T3(("\nw2: ", w2));
 
 
     MP_bitShiftRight(&w2);
     T3(("\nw2: ", w2));
 
-    SUM_IN_FIRST_ARG(w2, w3)
+    sum_in_first_arg(w2, w3);
 
     toom3(&xterzapiuuno, &xterzapiuuno, &w4);
-//    MP_Toom3(&xterzapiuuno, xterzapiuuno, w4);
 
-//    MP_Addition(&w2, temp, xterzapiuuno);
-    SUM_IN_FIRST_ARG(w2, xterzapiuuno)
+    sum_in_first_arg(w2, xterzapiuuno);
 
     T3(("\nAA w2: ", w2));
 
@@ -1351,27 +1344,15 @@ void toom3(MPN *result, MPN *factor1, MPN *factor2) {
     T3(("\nboh w1: ", w1));
     T3(("\nboh w0: ", w0));
 
-//    MP_Addition(&w1, w1, w0);
-    SUM_IN_FIRST_ARG(w1, w0)
+    sum_in_first_arg(w1, w0);
     T3(("\nw1: ", w1));
 
 
-
-//    MP_Addition(&w3, w3, w1);
-    SUM_IN_FIRST_ARG(w3, w1)
+    sum_in_first_arg(w3, w1);
     T3(("\nw1: ", w1));
     T3(("\nw3: ", w3));
 
-//    for (int i = 0; i < (w1).limbNumber; i++) {
-//
-//        (w3).num[(w3).limbNumber - (w1).limbNumber + i] =
-//                (w3).num[(w3).limbNumber - (w1).limbNumber + i] ^ (w1).num[i];
-//
-//    }
 
-
-
-    //    T3(("\nw3: ", w3));
     MP_bitShiftRight(&w3);
     T3(("\nw3: ", w3));
 
@@ -1379,25 +1360,22 @@ void toom3(MPN *result, MPN *factor1, MPN *factor2) {
     T3(("\nw3: ", w3));
 
 
-//    MP_Addition(&temp, w1, w4);
-//    MP_Addition(&w1, temp, w2);
-    SUM_IN_FIRST_ARG(w1, w4)
-    SUM_IN_FIRST_ARG(w1, w2)
+    sum_in_first_arg(w1, w4);
+    sum_in_first_arg(w1, w2);
 
     T3(("\nw1: ", w1));
 
 
-//    MP_Addition(&w2, w2, w3);
-    SUM_IN_FIRST_ARG(w2, w3)
+    sum_in_first_arg(w2, w3);
 
 
     T3(("\nw2: ", w2));
 
 
-    SUM_IN_FIRST_ARG(*result, *result)
+    sum_in_first_arg(*result, *result);
     T3(("\nresult: ", *result));
 
-    SUM_IN_FIRST_ARG(*result, w0)
+    sum_in_first_arg(*result, w0);
     T3(("\nresult: ", *result));
 
 
@@ -1418,31 +1396,28 @@ void toom3(MPN *result, MPN *factor1, MPN *factor2) {
     T3(("\nw4: ", w4));
 
 
-    int counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, w1)
+    int counter = lead_zero_limbs_count(w1);
     for (int l = 0; l < w1.limbNumber - counter; ++l) {
         result->num[(result->limbNumber) - l - 1 - bih] ^= w1.num[w1.limbNumber - 1 - l];
     }
     T3(("\nresult: ", *result));
 
-    counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, w2)
+    counter = lead_zero_limbs_count(w2);
     for (int l = 0; l < w2.limbNumber - counter; ++l) {
         result->num[(result->limbNumber) - l - 1 - 2 * bih] ^= w2.num[w2.limbNumber - 1 - l];
     }
     T3(("\nresult: ", *result));
 
-    counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, w3)
+    counter = lead_zero_limbs_count(w3);
     for (int l = 0; l < w3.limbNumber - counter; ++l) {
         result->num[(result->limbNumber) - l - 1 - 3 * bih] ^= w3.num[w3.limbNumber - 1 - l];
     }
     T3(("\nresult: ", *result));
 
-    counter = 0;
+    counter = lead_zero_limbs_count(w4);
     T3(("\nw4: ", w4));
 
-    LEAD_ZERO_LIMB_COUNT(counter, w4)
+
     PRINTF(("\ncounter: %d", counter));
     for (int l = 0; l < w4.limbNumber - counter; ++l) {
         result->num[(result->limbNumber) - l - 1 - 4 * bih] ^= w4.num[w4.limbNumber - 1 - l];
@@ -1484,18 +1459,16 @@ void MP_Toom3(MPN *result, MPN factor1, MPN factor2) {
 
 /*---------------------------------------------------------------------------*/
 
-void toom4(MPN *result, MPN *factor1, MPN *factor2) {
+void toom4(MPN *restrict result, MPN *restrict factor1, MPN *restrict factor2) {
 
     PRINTF(("\n------tooom4-------"));
 
     MPN u, v, t;
 
-    int counter1 = 0, counter2 = 0;
-    LEAD_ZERO_LIMB_COUNT(counter1, *factor1)
-    LEAD_ZERO_LIMB_COUNT(counter2, *factor2)
+    int counter1 = lead_zero_limbs_count(*factor1), counter2 = lead_zero_limbs_count(*factor2);
 
     if (counter1 == (*factor1).limbNumber && counter2 == (*factor2).limbNumber) {
-        SUM_IN_FIRST_ARG(*result, *result);
+        sum_in_first_arg(*result, *result);
         return;
     }
 
@@ -1508,7 +1481,7 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
         ALLOCA_EMPTY(c, result->limbNumber)
 
         ALLOCA_EMPTY(b, ((*factor2).limbNumber - counter2 + 1));
-//        SUM_IN_FIRST_ARG(b, (*factor2))
+//        sum_in_first_arg(b, (*factor2));
         for (int j = 0, i = 0; j < b.limbNumber && i < (*factor2).limbNumber - counter2; ++j, ++i) {
             b.num[b.limbNumber - 1 - j] = (*factor2).num[(*factor2).limbNumber - 1 - i];
         }
@@ -1525,19 +1498,17 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
                     }
                 }
             }
-            if (k != LIMB_BITS - 1) LEFTSHIFT(b, 1);
-//                MP_bitShiftLeft(&b, 1);
+            if (k != LIMB_BITS - 1) bitShiftLeft(b, 1);
+//                MP_bitShiftLeft_checkSize(&b, 1);
         }
 
-        unsigned counter = 0;
-
-        LEAD_ZERO_LIMB_COUNT(counter, c);
+        unsigned counter = lead_zero_limbs_count(c);
 
 
 //        *result = init(c.num, c.limbNumber);
 //
-        SUM_IN_FIRST_ARG(*result, *result); //azzero contenuto di result
-        SUM_IN_FIRST_ARG(*result, c);
+        sum_in_first_arg(*result, *result); //azzero contenuto di result
+        sum_in_first_arg(*result, c);
 
 //        ALLOCA(*result,c.num,c.limbNumber) // non va
 
@@ -1651,16 +1622,16 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
 
     //EVALUATION
 //    MP_Addition(&w1, u1, u0);
-    SUM_IN_FIRST_ARG(w1, u1)
-    SUM_IN_FIRST_ARG(w1, u0)
+    sum_in_first_arg(w1, u1);
+    sum_in_first_arg(w1, u0);
 
     T4(("\nw1 ", w1));
 
 //    MP_Addition(&w1, u2, w1);
-    SUM_IN_FIRST_ARG(w1, u2)
+    sum_in_first_arg(w1, u2);
     T4(("\nw1 ", w1));
 //    MP_Addition(&w1, u3, w1);
-    SUM_IN_FIRST_ARG(w1, u3)
+    sum_in_first_arg(w1, u3);
     T4(("\nw1 ", w1));
 
 //    MP_Addition(&w2, v1, v0);
@@ -1669,10 +1640,10 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
 //    T4(("\nw2 ", w2));
 //    MP_Addition(&w2, v3, w2);
 
-    SUM_IN_FIRST_ARG(w2, v1)
-    SUM_IN_FIRST_ARG(w2, v0)
-    SUM_IN_FIRST_ARG(w2, v2)
-    SUM_IN_FIRST_ARG(w2, v3)
+    sum_in_first_arg(w2, v1);
+    sum_in_first_arg(w2, v0);
+    sum_in_first_arg(w2, v2);
+    sum_in_first_arg(w2, v3);
     T4(("\nw2 ", w2));
 
 
@@ -1693,50 +1664,50 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
 //    MPN temp = init(u3.num, u3.limbNumber); //per 0x2
 
 
-    SUM_IN_FIRST_ARG(temp, u3)
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+    sum_in_first_arg(temp, u3);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
     T4(("\ntemp ", temp));
 
 
 //    MP_Addition(&temp, u2, temp);
-    SUM_IN_FIRST_ARG(temp, u2)
+    sum_in_first_arg(temp, u2);
     T4(("\ntemp ", temp));
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
 
     T4(("\ntemp ", temp));
 //    MP_Addition(&w0, u1, temp);
-    SUM_IN_FIRST_ARG(w0, u1)
-    SUM_IN_FIRST_ARG(w0, temp)
+    sum_in_first_arg(w0, u1);
+    sum_in_first_arg(w0, temp);
     T4(("\n\nLAST EDIT w0: ", w0));
 
 
 
 
 //    temp = init(v3.num, v3.limbNumber); //per 0x2
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, v3)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, v3);
 
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
     T4(("\ntemp ", temp));
 
 
 
 //    MP_Addition(&temp, v2, temp);
 
-    SUM_IN_FIRST_ARG(temp, v2)
+    sum_in_first_arg(temp, v2);
     T4(("\ntemp ", temp));
 
 
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w6, w6)
-    SUM_IN_FIRST_ARG(w6, v1)
-    SUM_IN_FIRST_ARG(w6, temp)
+    sum_in_first_arg(w6, w6);
+    sum_in_first_arg(w6, v1);
+    sum_in_first_arg(w6, temp);
 //    MP_Addition(&w6, v1, temp);
     T4(("\nw6 ", w6));
 
@@ -1756,41 +1727,41 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
 
 
 
-    SUM_IN_FIRST_ARG(temp, w0)
+    sum_in_first_arg(temp, w0);
 //    MP_Addition(&temp, w0, temp);
     T4(("\ntemp ", temp));
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
 
     T4(("\ntemp ", temp));
 
 
-    SUM_IN_FIRST_ARG(w4, w4)
-    SUM_IN_FIRST_ARG(w4, w1)
+    sum_in_first_arg(w4, w4);
+    sum_in_first_arg(w4, w1);
 
-    SUM_IN_FIRST_ARG(w4, temp)
+    sum_in_first_arg(w4, temp);
 //    MP_Addition(&w4, w1, temp);
     T4(("\nw4 ", w4));
 
 
     toom4(&temp, &v3, &xpiuuno);
     T4(("\ntemp ", temp));
-    SUM_IN_FIRST_ARG(temp, w6)
+    sum_in_first_arg(temp, w6);
 //    MP_Addition(&temp, w6, temp);
     T4(("\ntemp ", temp));
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w5, w5)
-    SUM_IN_FIRST_ARG(w5, temp)
-    SUM_IN_FIRST_ARG(w5, w2)
+    sum_in_first_arg(w5, w5);
+    sum_in_first_arg(w5, temp);
+    sum_in_first_arg(w5, w2);
 //    MP_Addition(&w5, temp, w2);
     T4(("\nw5 ", w5));
 
 
-//    MP_bitShiftLeft(&w0, 1);
-    LEFTSHIFT(w0, 1);
+//    MP_bitShiftLeft_checkSize(&w0, 1);
+    bitShiftLeft(w0, 1);
 
 //    if (w0.num[0] != 0)
 //        print("\n", w0);
@@ -1798,16 +1769,16 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
     T4(("\nw0 ", w0));
 
 
-    SUM_IN_FIRST_ARG(w0, u0)
+    sum_in_first_arg(w0, u0);
 //    MP_Addition(&w0, u0, w0);
     T4(("\nw0 ", w0));
 
-//    MP_bitShiftLeft(&w6, 1);
-    LEFTSHIFT(w6, 1);
+//    MP_bitShiftLeft_checkSize(&w6, 1);
+    bitShiftLeft(w6, 1);
 
     T4(("\nw6 ", w6));
 
-    SUM_IN_FIRST_ARG(w6, v0)
+    sum_in_first_arg(w6, v0);
 //    MP_Addition(&w6, v0, w6);
     T4(("\nw6 ", w6));
 
@@ -1822,135 +1793,135 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
 
 //    temp = init(u2.num, u2.limbNumber);
 
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, u2)
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, u2);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
 
     T4(("\ntemp ", temp));
 
 
 //    MP_Addition(&w0, temp, temp1);
-    SUM_IN_FIRST_ARG(w0, w0)
-    SUM_IN_FIRST_ARG(w0, temp)
+    sum_in_first_arg(w0, w0);
+    sum_in_first_arg(w0, temp);
 
 
 //    MPN temp1;
 //    ALLOCA_EMPTY(temp1,4*bih)
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, u1)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, u1);
 //    temp1 = init(u1.num, u1.limbNumber);
-//    MP_bitShiftLeft(&temp, 2);
-    LEFTSHIFT(temp, 2);
+//    MP_bitShiftLeft_checkSize(&temp, 2);
+    bitShiftLeft(temp, 2);
 
 //    T4(("\ntemp1 ", temp1));
 
-    SUM_IN_FIRST_ARG(w0, temp)
+    sum_in_first_arg(w0, temp);
     T4(("\nw0 ", w0));
 
 //    temp = init(u0.num, u0.limbNumber);
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, u0)
-//    MP_bitShiftLeft(&temp, 3); //per x^3
-    LEFTSHIFT(temp, 3);
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, u0);
+//    MP_bitShiftLeft_checkSize(&temp, 3); //per x^3
+    bitShiftLeft(temp, 3);
 
     T4(("\ntemp ", temp));
 
 //    MP_Addition(&w0, temp, w0);
-    SUM_IN_FIRST_ARG(w0, temp)
+    sum_in_first_arg(w0, temp);
     T4(("\nw0 ", w0));
 
 //    temp = init(v2.num, v2.limbNumber);
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, v2)
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, v2);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w6, w6)
-    SUM_IN_FIRST_ARG(w6, temp)
+    sum_in_first_arg(w6, w6);
+    sum_in_first_arg(w6, temp);
 
 //    temp1 = init(v1.num, v1.limbNumber);
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, v1)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, v1);
 
-//    MP_bitShiftLeft(&temp, 2);
-    LEFTSHIFT(temp, 2);
+//    MP_bitShiftLeft_checkSize(&temp, 2);
+    bitShiftLeft(temp, 2);
 
 //    T4(("\ntemp1 ", temp1));
 
 //    MP_Addition(&w6, temp, temp1);
 
-    SUM_IN_FIRST_ARG(w6, temp)
+    sum_in_first_arg(w6, temp);
     T4(("\nw6 ", w6));
 
 
 //    temp = init(v0.num, v0.limbNumber);
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, v0)
-//    MP_bitShiftLeft(&temp, 3); //per x^3
-    LEFTSHIFT(temp, 3);
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, v0);
+//    MP_bitShiftLeft_checkSize(&temp, 3); //per x^3
+    bitShiftLeft(temp, 3);
     T4(("\ntemp ", temp));
 
 //    MP_Addition(&w6, temp, w6);
-    SUM_IN_FIRST_ARG(w6, temp)
+    sum_in_first_arg(w6, temp);
 
     T4(("\nw6 ", w6));
 
-    SUM_IN_FIRST_ARG(w1, w0)
+    sum_in_first_arg(w1, w0);
 //    MP_Addition(&w1, w0, w1);
     T4(("\nw1 ", w1));
 
 //    MP_free(temp);
 //    temp = init(u0.num, u0.limbNumber);
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, u0)
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, u0);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w1, temp)
+    sum_in_first_arg(w1, temp);
 //    MP_Addition(&w1, temp, w1); // w1 + u0*x
     T4(("\nw1 ", w1));
 
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w1, temp)
+    sum_in_first_arg(w1, temp);
 //    MP_Addition(&w1, w1, temp); // w1 + u0*x^2
     T4(("\nw1 ", w1));
 
-    SUM_IN_FIRST_ARG(w2, w6)
+    sum_in_first_arg(w2, w6);
 //    MP_Addition(&w2, w6, w2);
     T4(("\nw2 ", w2));
 
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, v0)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, v0);
 //    temp = init(v0.num, v0.limbNumber);
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w2, temp)
+    sum_in_first_arg(w2, temp);
 //    MP_Addition(&w2, temp, w2); // w2 + u0*x
     T4(("\nw2 ", w2));
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w2, temp)
+    sum_in_first_arg(w2, temp);
 //    MP_Addition(&w2, temp, w2); // w2 + u0*x^2
     T4(("\nw2 ", w2));
 
-    SUM_IN_FIRST_ARG(w0, u3)
+    sum_in_first_arg(w0, u3);
 //    MP_Addition(&w0, u3, w0);
     T4(("\nw0 ", w0));
 
-    SUM_IN_FIRST_ARG(w6, v3)
+    sum_in_first_arg(w6, v3);
 //    MP_Addition(&w6, v3, w6);
     T4(("\nw6 ", w6));
 
@@ -1971,126 +1942,126 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
 
     //INTERPOLATION
 
-    SUM_IN_FIRST_ARG(w1, w2)
+    sum_in_first_arg(w1, w2);
 //    MP_Addition(&w1, w2, w1);
     T4(("\nw1 ", w1));
-    SUM_IN_FIRST_ARG(w1, w0)
+    sum_in_first_arg(w1, w0);
 //    MP_Addition(&w1, w0, w1); //+w0
     T4(("\nw1 ", w1));
 
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, w0)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, w0);
 //    temp = init(w0.num, w0.limbNumber);
-//    MP_bitShiftLeft(&temp, 2); //+w0*x^2
-    LEFTSHIFT(temp, 2);
+//    MP_bitShiftLeft_checkSize(&temp, 2); //+w0*x^2
+    bitShiftLeft(temp, 2);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w1, temp)
+    sum_in_first_arg(w1, temp);
 //    MP_Addition(&w1, temp, w1);
     T4(("\nw1 ", w1));
-//    MP_bitShiftLeft(&temp, 2);
-    LEFTSHIFT(temp, 2);
+//    MP_bitShiftLeft_checkSize(&temp, 2);
+    bitShiftLeft(temp, 2);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w1, temp)
+    sum_in_first_arg(w1, temp);
 //    MP_Addition(&w1, temp, w1); //+w0*x^4
     T4(("\nw1 ", w1));
 
-    SUM_IN_FIRST_ARG(w5, w4)
+    sum_in_first_arg(w5, w4);
 //    MP_Addition(&w5, w4, w5);
     T4(("\nw5 ", w5));
-    SUM_IN_FIRST_ARG(w5, w6)
+    sum_in_first_arg(w5, w6);
 //    MP_Addition(&w5, w6, w5);
     T4(("\nw5 ", w5));
 
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, w6)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, w6);
 //    temp = init(w6.num, w6.limbNumber);
-//    MP_bitShiftLeft(&temp, 2);
-    LEFTSHIFT(temp, 2);
+//    MP_bitShiftLeft_checkSize(&temp, 2);
+    bitShiftLeft(temp, 2);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w5, temp)
+    sum_in_first_arg(w5, temp);
 //    MP_Addition(&w5, w5, temp);
     T4(("\nw5 ", w5));
-//    MP_bitShiftLeft(&temp, 2); ***
-    LEFTSHIFT(temp, 2);
+//    MP_bitShiftLeft_checkSize(&temp, 2); ***
+    bitShiftLeft(temp, 2);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w5, temp)
+    sum_in_first_arg(w5, temp);
 //    MP_Addition(&w5, w5, temp);
     T4(("\nw5 ", w5));
-    SUM_IN_FIRST_ARG(w5, w1)
+    sum_in_first_arg(w5, w1);
 //    MP_Addition(&w5, w5, w1);
     T4(("\nw5 ", w5));
     MP_exactDivXPlusXFour(w5);
     T4(("\nw5 ", w5));
 
-    SUM_IN_FIRST_ARG(w2, w6)
+    sum_in_first_arg(w2, w6);
 //    MP_Addition(&w2, w2, w6);
     T4(("\nw2 ", w2));
 
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, w0)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, w0);
 //    temp = init(w0.num, w0.limbNumber);
     //****************************
 
-//    MP_bitShiftLeft(&temp, 6);
-    LEFTSHIFT(temp, 6);
+//    MP_bitShiftLeft_checkSize(&temp, 6);
+    bitShiftLeft(temp, 6);
 
     T4(("\ntemp ", temp));
     //****************************
 
-    SUM_IN_FIRST_ARG(w2, temp)
+    sum_in_first_arg(w2, temp);
 //    MP_Addition(&w2, temp, w2);
     T4(("\nw2 ", w2));
 
-    SUM_IN_FIRST_ARG(w4, w2)
-    SUM_IN_FIRST_ARG(w4, w0)
+    sum_in_first_arg(w4, w2);
+    sum_in_first_arg(w4, w0);
 //    MP_Addition(&temp, w2, w0);
 //    T4(("\ntemp ", temp));
 
 //    MP_Addition(&w4, w4, temp);
     T4(("\nw4 ", w4));
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, w6)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, w6);
 //    MP_free(temp);
 //    temp = init(w6.num, w6.limbNumber);
-//    MP_bitShiftLeft(&temp, 6);
-    LEFTSHIFT(temp, 6);
+//    MP_bitShiftLeft_checkSize(&temp, 6);
+    bitShiftLeft(temp, 6);
 
     T4(("\ntemp ", temp));
 
 
-    SUM_IN_FIRST_ARG(w4, temp)
+    sum_in_first_arg(w4, temp);
 //    MP_Addition(&w4, w4, temp);
     T4(("\nw4 ", w4));
 
 //    MP_free(temp);
 //    temp = init(w5.num, w5.limbNumber);
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, w5)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, w5);
     T4(("\ntemp ", temp));
 
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w4, temp)
+    sum_in_first_arg(w4, temp);
 //    MP_Addition(&w4, w4, temp); //w4 + w5*x
     T4(("\nw4 ", w4));
 
-//    MP_bitShiftLeft(&temp, 4); //w5*x^5
-    LEFTSHIFT(temp, 4);
+//    MP_bitShiftLeft_checkSize(&temp, 4); //w5*x^5
+    bitShiftLeft(temp, 4);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w4, temp)
+    sum_in_first_arg(w4, temp);
 //    MP_Addition(&w4, w4, temp); //w4 + w5*x
     T4(("\nw4 ", w4));
 
@@ -2098,37 +2069,37 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
     MP_exactDivXtwoPlusXFour(w4);
     T4(("\nw4 ", w4));
 
-    SUM_IN_FIRST_ARG(w3, w0)
-    SUM_IN_FIRST_ARG(w3, w6)
+    sum_in_first_arg(w3, w0);
+    sum_in_first_arg(w3, w6);
 //    MP_Addition(&temp, w0, w6);
 
 //    MP_Addition(&w3, w3, temp);
     T4(("\nw3 ", w3));
 
-    SUM_IN_FIRST_ARG(w1, w3)
+    sum_in_first_arg(w1, w3);
 //    MP_Addition(&w1, w1, w3);
     T4(("\nw1 ", w1));
 
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, w1)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, w1);
 //    MP_free(temp);
 //    temp = init(w1.num, w1.limbNumber);
-//    MP_bitShiftLeft(&temp, 1);
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1);
+    bitShiftLeft(temp, 1);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w2, temp)
+    sum_in_first_arg(w2, temp);
 
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, w3)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, w3);
 
 //    temp1 = init(w3.num, w3.limbNumber);
-//    MP_bitShiftLeft(&temp, 2);
-    LEFTSHIFT(temp, 2);
+//    MP_bitShiftLeft_checkSize(&temp, 2);
+    bitShiftLeft(temp, 2);
 
 //    T4(("\ntemp1 ", temp1));
-    SUM_IN_FIRST_ARG(w2, temp)
+    sum_in_first_arg(w2, temp);
 
 //    MP_Addition(&temp, temp, temp1);
 //    T4(("\ntemp ", temp));
@@ -2140,59 +2111,59 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
 //    MP_Addition(&temp, w4, w5);
 //    T4(("\ntemp ", temp));
 //    MP_Addition(&w3, w3, temp);
-    SUM_IN_FIRST_ARG(w3, w4)
-    SUM_IN_FIRST_ARG(w3, w5)
+    sum_in_first_arg(w3, w4);
+    sum_in_first_arg(w3, w5);
     T4(("\nw3 ", w3));
 
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, w3)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, w3);
 //    MP_free(temp);
 //    temp = init(w3.num, w3.limbNumber);
 
-//    MP_bitShiftLeft(&temp, 1); //w3*x
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1); //w3*x
+    bitShiftLeft(temp, 1);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w1, temp)
+    sum_in_first_arg(w1, temp);
 //    MP_Addition(&w1, w1, temp); //w1 + w3*x
     T4(("\nw1 ", w1));
-//    MP_bitShiftLeft(&temp, 1); //w3*x^2
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1); //w3*x^2
+    bitShiftLeft(temp, 1);
 
-    SUM_IN_FIRST_ARG(w1, temp)
+    sum_in_first_arg(w1, temp);
 //    MP_Addition(&w1, w1, temp); //w1 + w3*x^2
     T4(("\nw1 ", w1));
     MP_exactDivXPlusXFour(w1);
     T4(("\nw1 ", w1));
 
-    SUM_IN_FIRST_ARG(w5, w1)
+    sum_in_first_arg(w5, w1);
 //    MP_Addition(&w5, w5, w1);
     T4(("\nw5 ", w5));
 
-    SUM_IN_FIRST_ARG(temp, temp)
-    SUM_IN_FIRST_ARG(temp, w5)
+    sum_in_first_arg(temp, temp);
+    sum_in_first_arg(temp, w5);
 //    temp = init(w5.num, w5.limbNumber);
-//    MP_bitShiftLeft(&temp, 1); //w5*x
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1); //w5*x
+    bitShiftLeft(temp, 1);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w2, temp)
+    sum_in_first_arg(w2, temp);
 //    MP_Addition(&w2, temp, w2);
     T4(("\nw2 ", w2));
-//    MP_bitShiftLeft(&temp, 1); //w5*x^2
-    LEFTSHIFT(temp, 1);
+//    MP_bitShiftLeft_checkSize(&temp, 1); //w5*x^2
+    bitShiftLeft(temp, 1);
 
     T4(("\ntemp ", temp));
 
-    SUM_IN_FIRST_ARG(w2, temp)
+    sum_in_first_arg(w2, temp);
 //    MP_Addition(&w2, temp, w2);
     T4(("\nw2 ", w2));
     MP_exactDivXtwoPlusXFour(w2);
     T4(("\nw2 ", w2));
 
-    SUM_IN_FIRST_ARG(w4, w2)
+    sum_in_first_arg(w4, w2);
 //    MP_Addition(&w4, w2, w4);
     T4(("\nw4 ", w4));
 
@@ -2208,39 +2179,34 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
 
 
     ALLOCA_EMPTY(w, result->limbNumber)
-//    SUM_IN_FIRST_ARG(w, w0)
+//    sum_in_first_arg(w, w0);
 
-    int counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, w0)
+    int counter = lead_zero_limbs_count(w0);
     for (int l = 0; l < w0.limbNumber - counter; ++l) {
         w.num[(w.limbNumber) - l - 1] ^= w0.num[w0.limbNumber - 1 - l];
     }
-    counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, w1)
+    counter = lead_zero_limbs_count(w1);
     for (int l = 0; l < w1.limbNumber - counter; ++l) {
         w.num[(w.limbNumber) - l - 1 - bih] ^= w1.num[w1.limbNumber - 1 - l];
     }
     T4(("\nw: ", w));
 
 
-    counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, w2)
+    counter = lead_zero_limbs_count(w2);
     for (int l = 0; l < w2.limbNumber - counter; ++l) {
         w.num[(w.limbNumber) - l - 1 - 2 * bih] ^= w2.num[w2.limbNumber - 1 - l];
     }
     T4(("\nw: ", w));
 
 
-    counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, w3)
+    counter = lead_zero_limbs_count(w3);
     for (int l = 0; l < w3.limbNumber - counter; ++l) {
         w.num[(w.limbNumber) - l - 1 - 3 * bih] ^= w3.num[w3.limbNumber - 1 - l];
     }
     T4(("\nw: ", w));
 
 
-    counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, w4)
+    counter = lead_zero_limbs_count(w4);
 //    PRINTF(("\ncounter: %d", counter));
     for (int l = 0; l < w4.limbNumber - counter; ++l) {
         w.num[(w.limbNumber) - l - 1 - 4 * bih] ^= w4.num[w4.limbNumber - 1 - l];
@@ -2248,9 +2214,7 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
 
     T4(("\nw: ", w));
 
-    counter = 0;
-
-    LEAD_ZERO_LIMB_COUNT(counter, w5)
+    counter = lead_zero_limbs_count(w5);
     PRINTF(("\ncounter: %d", counter));
     for (int l = 0; l < w5.limbNumber - counter; ++l) {
         w.num[(w.limbNumber) - l - 1 - 5 * bih] ^= w5.num[w5.limbNumber - 1 - l];
@@ -2259,9 +2223,7 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
     T4(("\nw: ", w));
 
 
-    counter = 0;
-
-    LEAD_ZERO_LIMB_COUNT(counter, w6)
+    counter = lead_zero_limbs_count(w6);
     PRINTF(("\ncounter: %d", counter));
     for (int l = 0; l < w6.limbNumber - counter; ++l) {
         w.num[(w.limbNumber) - l - 1 - 6 * bih] ^= w6.num[w6.limbNumber - 1 - l];
@@ -2271,8 +2233,8 @@ void toom4(MPN *result, MPN *factor1, MPN *factor2) {
 
     PRINTF(("\n-------FINAL------"));
 
-    SUM_IN_FIRST_ARG(*result, *result)
-    SUM_IN_FIRST_ARG(*result, w)
+    sum_in_first_arg(*result, *result);
+    sum_in_first_arg(*result, w);
 }
 
 
@@ -2321,8 +2283,7 @@ static inline bool isOne(MPN poly) {
 //    return false;
 
 
-    int counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, poly);
+    int counter = lead_zero_limbs_count(poly);
 
     if (poly.limbNumber - counter == 1 && poly.num[poly.limbNumber - 1] == 1)
         return true;
@@ -2389,8 +2350,7 @@ unsigned degree(MPN poly) {
 //    MPN c = init(poly.num, poly.limbNumber);
 //    removeLeadingZeroLimbs(&c);
 
-    int counter = 0;
-    LEAD_ZERO_LIMB_COUNT(counter, poly)
+    unsigned counter = lead_zero_limbs_count(poly);
 
     if (counter == poly.limbNumber)
         return 0;
