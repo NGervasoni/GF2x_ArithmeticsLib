@@ -2,6 +2,8 @@
 #include <assert.h>
 #include "GF2x_Arithmetics.h"
 
+// Returns the number of zero valued limbs at the beginning of the MPN
+
 static inline unsigned lead_zero_limbs_count(MPN poly) {
     unsigned counter = 0;
     for (int i = 0; i < poly.limbNumber; ++i) {
@@ -14,6 +16,7 @@ static inline unsigned lead_zero_limbs_count(MPN poly) {
 }
 
 /*---------------------------------------------------------------------------*/
+// Sum a, b storing the result in a (a.limbNumber > b.limbNumber)
 
 static inline void sum_in_first_arg(MPN a, MPN b) {
     int offset = (a).limbNumber - (b).limbNumber;
@@ -35,11 +38,11 @@ void create_precomputed() {
     for (unsigned j = 0; j < 256; ++j) {
 
         uint8_t temp = (uint8_t) j;
-        precomputed[j] = (uint16_t) (0 + (temp & 0x1));
+        precomputed[j] = (uint16_t) (0 + (temp & (uint8_t) 0x1));
 
         for (unsigned i = 1; i < 8; ++i) {
-            temp = temp >> 1;
-            precomputed[j] = (uint16_t) (precomputed[j] + (temp & 1) * (2, 2 * i));
+            temp = temp >> (uint8_t) 1;
+            precomputed[j] = (uint16_t) (precomputed[j] + (temp & (uint8_t) 1) * (2, 2 * i));
 
         }
     }
@@ -54,7 +57,7 @@ bool properSize(MPN poly) {
         return false;
     //poly.limbNumber is T
     for (int i = LIMB_BITS - 1; i >= LIMB_BITS - S; i--) {
-        if (poly.num[0] >> i == 1)
+        if (poly.num[0] >> (unsigned) i == 1)
             return false;
     }
     return true;
@@ -143,7 +146,7 @@ void MP_bitShiftLeft(MPN *a, int bitsToShift, bool checkSize) {
 
         for (int i = LIMB_BITS - 1; i >= LIMB_BITS - bitsToShift; i--) {
 
-            if (a->num[0] >> i & 1) { //cerca posizione primo bit
+            if (a->num[0] >> (unsigned) i & (uint8_t) 1) { //cerca posizione primo bit
                 break;
 
             } else {
@@ -186,11 +189,11 @@ static inline void MP_bitShiftRight(MPN *a) {
 
     for (unsigned i = 0; i < a->limbNumber; ++i) {
 
-        if (a->num[i] & 1)
+        if (a->num[i] & (uint8_t) 1)
             curr_last_bit = 1;
         else curr_last_bit = 0;
 
-        a->num[i] = (a->num[i] >> 1);
+        a->num[i] = (a->num[i] >> (uint8_t) 1);
 
         if (prev_last_bit)
             a->num[i] ^= shifted_bit;
@@ -274,7 +277,7 @@ void MP_ShiftAndAddMul(MPN *result, MPN factor1, MPN factor2, MPN irr_poly) {
 
 // initial setting of c
             if (i == (int) (irr_poly.limbNumber - 1) && j == 0) {
-                if (a.num[a.limbNumber - 1] & 0x1) {
+                if (a.num[a.limbNumber - 1] & (uint8_t) 0x1) {
                     ALLOCA(c, b.num, irr_poly.limbNumber);
                 } else {
                     ALLOCA_EMPTY(c, irr_poly.limbNumber);
@@ -286,7 +289,8 @@ void MP_ShiftAndAddMul(MPN *result, MPN factor1, MPN factor2, MPN irr_poly) {
                 if (b.num[0] >> shiftToHigherOne) {
                     sum_in_first_arg(b, irr_poly);
                 }
-                if ((a.num[i] >> j) & 0x1) sum_in_first_arg(c, b);
+                if ((a.num[i] >> j) & (uint8_t) 0x1)
+                    sum_in_first_arg(c, b);
             }
 
         }
@@ -305,7 +309,7 @@ static inline void combRtoLCore(MPN *factor1, MPN *b,
         // j seleziona a ogni ciclo il limb
         for (int j = (*factor1).limbNumber - 1; j >= 0; --j) {
             // shift di k posizioni (k=0 => seleziono bit più a destra)
-            if ((*factor1).num[j] >> k & 0x1) {
+            if ((*factor1).num[j] >> (unsigned) k & (uint8_t) 0x1) {
 
                 for (int i = 0; i < (*b).limbNumber; ++i) {
                     (*c).num[(*c).limbNumber - 1 - ((*factor1).limbNumber - 1 - j) - i] ^= (*b).num[(*b).limbNumber -
@@ -358,7 +362,7 @@ void MP_CombLtoRMul(MPN *result, MPN factor1, MPN factor2) {
         for (int j = factor1.limbNumber - 1; j >= 0; --j) {
 
             // shift di k posizioni (k=0 => seleziono bit più a destra)
-            if (factor1.num[j] >> k & 0x1) {
+            if (factor1.num[j] >> (unsigned) k & (uint8_t) 0x1) {
 
                 for (int i = 0; i < factor2.limbNumber; ++i) {
 
@@ -403,7 +407,7 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
 
     }
 
-    int b_u_array_size = 1 << w;
+    int b_u_array_size = (uint8_t) 1 << w;
     MPN b_u[b_u_array_size];
 
     ALLOCA_EMPTY(b_u[0], 1)
@@ -420,7 +424,7 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
 
             for (int j = b.limbNumber - 1; j >= 0; --j) {
 
-                if (b.num[j] >> k & 0x1) {
+                if (b.num[j] >> (unsigned) k & (uint8_t) 0x1) {
 
                     for (int i = 0; i < bubu.limbNumber; ++i) {
                         cc.num[cc.limbNumber - 1 - (b.limbNumber - 1 - j) - i] ^= bubu.num[bubu.limbNumber - 1 -
@@ -448,7 +452,7 @@ void MP_CombLtoRMul_w(MPN *res, MPN factor1, MPN factor2, unsigned w) {
         for (int j = a.limbNumber - 1; j >= 0; --j) {
 
 
-            LIMB w_bits_value = ((a.num[j] >> (k * w)) & ((LIMB) (1 << w) - 1));
+            LIMB w_bits_value = ((a.num[j] >> (k * w)) & ((LIMB) ((uint8_t) 1 << w) - 1));
 
             MPN bu = b_u[w_bits_value];
 
@@ -617,7 +621,7 @@ MPN MP_Squaring(MPN poly) {
 
     if (n1 == 1) {
         for (int i = 0; i < n; i++) {
-            c1[i] = (precomputed[a1[i]] << 8) ^ (precomputed[a1[i]] >> 8);
+            c1[i] = (precomputed[a1[i]] << (uint8_t) 8) ^ (precomputed[a1[i]] >> (uint8_t) 8);
         }
         return c;
     }
@@ -641,12 +645,11 @@ MPN MP_Squaring(MPN poly) {
 
 /*---------------------------------------------------------------------------*/
 //2.40
-// assumption: a has degree <= 2m-2, irr proper
-// irr(z) = z^m + r(z) where degree of r(z) is <= m-1
+// idea: irr_poly(z) = z^m + r(z) where degree of r(z) is <= m-1
 
 void MP_Reduce(MPN *result, MPN polyToreduce, MPN irr_poly) {
 
-    int block, tot_bits, extra_bits, extra_block;
+    int block, tot_bits;
 
     MPN c, r = init(irr_poly.num, irr_poly.limbNumber);
     MPN u[LIMB_BITS] = {0};
@@ -655,7 +658,7 @@ void MP_Reduce(MPN *result, MPN polyToreduce, MPN irr_poly) {
     for (int j = 0; j < r.limbNumber && temp == 0; ++j) {
         for (int i = LIMB_BITS - 1; i >= 0; i--) {
 
-            if (r.num[j] >> i & 1) {
+            if (r.num[j] >> (unsigned) i & (uint8_t) 1) {
                 temp = i; //posizione bit da levare è limbnumber-temp
                 limb = j;  //limb da cui levare il primo 1
                 break;
@@ -663,7 +666,7 @@ void MP_Reduce(MPN *result, MPN polyToreduce, MPN irr_poly) {
         }
     }
 
-    r.num[limb] = r.num[limb] ^ (LIMB) (1 << temp);
+    r.num[limb] = r.num[limb] ^ (LIMB) ((uint8_t) 1 << (unsigned) temp);
 
 // Precomputation of z^k * r(z)
     for (int k = 0; k < LIMB_BITS; ++k) {
@@ -677,7 +680,7 @@ void MP_Reduce(MPN *result, MPN polyToreduce, MPN irr_poly) {
 
         block = (tot_bits - 1 - l) / LIMB_BITS;
 
-        if (polyToreduce.num[block] >> (LIMB_BITS * (1 + block) - 1 - (tot_bits - 1 - l)) & 1) {
+        if (polyToreduce.num[block] >> (unsigned) (LIMB_BITS * (1 + block) - 1 - (tot_bits - 1 - l)) & (uint8_t) 1) {
 
             int j = (l - POWER_OF_TWO) / LIMB_BITS;
             int k = (l - POWER_OF_TWO) - LIMB_BITS * j;
@@ -792,22 +795,22 @@ MPN MP_Division_Bin_Inv(MPN a, MPN b, MPN irr_poly) {
 
     while (!isOne(u) && !isOne(v)) {
 
-        while (!isZero(u) && (u.num[u.limbNumber - 1] & 1) == 0) { //z divides u
+        while (!isZero(u) && (u.num[u.limbNumber - 1] & (uint8_t) 1) == 0) { //z divides u
 
             MP_bitShiftRight(&u); // u = u/z
 
-            if ((g1.num[g1.limbNumber - 1] & 1)) { //z doesn't divide g1
+            if ((g1.num[g1.limbNumber - 1] & (uint8_t) 1)) { //z doesn't divide g1
                 MP_Addition(&g1, irr_poly, g1);
             }
 
             MP_bitShiftRight(&g1);
         }
 
-        while (!isZero(v) && (v.num[v.limbNumber - 1] & 1) == 0) {
+        while (!isZero(v) && (v.num[v.limbNumber - 1] & (uint8_t) 1) == 0) {
 
             MP_bitShiftRight(&v); // v = v/z
 
-            if ((g2.num[g2.limbNumber - 1] & 1)) { //z doesn't divide g1
+            if ((g2.num[g2.limbNumber - 1] & (uint8_t) 1)) { //z doesn't divide g1
                 MP_Addition(&g2, irr_poly, g2);
             }
 
@@ -857,7 +860,7 @@ static inline void MP_exactDivOnePlusX(MPN poly) {
         t ^= poly.num[i];
 
         for (int j = 1; j <= LIMB_BITS / 2; j = j * 2) {
-            t ^= t << j;
+            t ^= t << (unsigned) j;
         }
         poly.num[i] = t;
         t >>= LIMB_BITS - 1;
@@ -887,7 +890,8 @@ static inline void MP_exactDivXPlusXFour(MPN c) {
 
 
     for (i = 0; i < reverse.limbNumber; i++) {
-        t ^= (reverse.num[i] >> 1) | ((i + 1 < reverse.limbNumber) ? (reverse.num[i + 1] << (LIMB_BITS - 1)) : 0);
+        t ^= reverse.num[i] >> (uint8_t) 1 |
+             ((i + 1 < reverse.limbNumber) ? (reverse.num[i + 1] << (LIMB_BITS - (uint8_t) 1)) : 0);
         shift = 3;
         while (LIMB_BITS >= shift) {
             t ^= t << shift ^ ((shift * 2 > LIMB_BITS) ? 0 : (t << shift * 2));
@@ -926,7 +930,7 @@ static inline void MP_exactDivXtwoPlusXFour(MPN poly) {
     }
 
     for (i = reverse.limbNumber - 1; i >= 0; i--) {
-        t = (reverse.num[i] >> 2) | (cy << (LIMB_BITS - 2));
+        t = (reverse.num[i] >> (uint8_t) 2) | (cy << (LIMB_BITS - 2));
         cy = reverse.num[i] & 3UL;
         reverse.num[i] = t;
     }
@@ -936,7 +940,7 @@ static inline void MP_exactDivXtwoPlusXFour(MPN poly) {
     for (i = 0; i < reverse.limbNumber; i++) {
         t ^= reverse.num[i];
         for (int j = 2; j <= LIMB_BITS / 2; j = j * 2) {
-            t ^= t << j;
+            t ^= t << (unsigned) j;
         }
         reverse.num[i] = t;
         t >>= (LIMB_BITS - 2);
@@ -1950,7 +1954,7 @@ unsigned degree(MPN poly) {
     LIMB head = poly.num[counter];
     if (poly.limbNumber - counter == 1) {
         for (int i = LIMB_BITS - 1; i >= 0; i--) {
-            if (head >> i == 1) {
+            if (head >> (unsigned) i == 1) {
                 return (unsigned) i;
             }
 
@@ -1959,8 +1963,7 @@ unsigned degree(MPN poly) {
 
     unsigned degree = (poly.limbNumber - 1 - counter) * LIMB_BITS;
     for (int i = LIMB_BITS - 1; i >= 0; i--) {
-        if (head >> i == 1) {
-            //   MP_free(c);
+        if (head >> (unsigned) i == 1) {
             return degree + i;
         }
 

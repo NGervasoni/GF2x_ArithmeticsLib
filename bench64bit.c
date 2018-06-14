@@ -106,20 +106,19 @@ void main(int argc, char *argv[]) {
     rl.rlim_cur = stackSize;
     response = setrlimit(RLIMIT_STACK, &rl);
     if (response != 0)
-        printf(stderr, "error when changing stack limit!\n");
+        printf("error when changing stack limit!\n");
 
     // ---------------------------- optional -----------------------------
 
     setvbuf(stdout, 0, 2, 0);
 
-
+    int factors_size = atoi(argv[1]);
     int random_numbers = atoi(argv[2]);
     MPN result[random_numbers];
 
     for (int m = 0; m < random_numbers; ++m) {
         result[m] = init_null();
     }
-    int factors_size = atoi(argv[1]);
 
 
 // Calculate time taken by a request
@@ -150,7 +149,7 @@ void main(int argc, char *argv[]) {
             limbs[i] = myRand(1, 0xffffffffffffff);
         }
 
-        factors2[j] = init(limbs, l);
+        factors2[j] = init(limbs, (unsigned) l);
     }
 
     double accum;
