@@ -994,7 +994,7 @@ void toom3(MPN *restrict result, MPN *restrict factor1, MPN *restrict factor2) {
     }
 
 
-    MPN u2, u1, u0, v2, v1, v0, xterzapiuuno, w0, w1, w2, w3, w4;
+    MPN u2, u1, u0, v2, v1, v0, temp, w0, w1, w2, w3, w4;
     unsigned factor_limbs_div3;
     unsigned bih; //number of limbs for each part
     int check;
@@ -1069,8 +1069,6 @@ void toom3(MPN *restrict result, MPN *restrict factor1, MPN *restrict factor2) {
     ALLOCA_EMPTY(w3, 4 * bih)
     ALLOCA_EMPTY(w4, 4 * bih)
 
-    ALLOCA_EMPTY(xterzapiuuno, 4 * bih)
-    xterzapiuuno.num[xterzapiuuno.limbNumber - 1] = 0x9;
 
 
     T3(("\nw0: ", w0));
@@ -1179,9 +1177,14 @@ void toom3(MPN *restrict result, MPN *restrict factor1, MPN *restrict factor2) {
 
     sum_in_first_arg(w2, w3);
 
-    toom3(&xterzapiuuno, &xterzapiuuno, &w4);
 
-    sum_in_first_arg(w2, xterzapiuuno);
+//     w4 * x^3+1 = w4 + w4 << 3
+    ALLOCA(temp, w4.num, w4.limbNumber);
+    MP_bitShiftLeft(&temp, 3, false);
+    sum_in_first_arg(temp, w4);
+
+
+    sum_in_first_arg(w2, temp);
 
     T3(("\nAA w2: ", w2));
 
