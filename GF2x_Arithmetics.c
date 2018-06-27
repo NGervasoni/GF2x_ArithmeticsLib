@@ -1328,10 +1328,7 @@ void toom4(MPN *restrict result, MPN *restrict factor1, MPN *restrict factor2) {
     T4(("\nv: ", v));
     T4(("\nresult: ", *result));
 
-    MPN u3, u2, u1, u0, v3, v2, v1, v0, w, w0, w1, w2, w3, w4, w5, w6, xpiuuno, temp;
-
-    ALLOCA_EMPTY(xpiuuno, 1);
-    xpiuuno.num[0] = 0x3;
+    MPN u3, u2, u1, u0, v3, v2, v1, v0, w, w0, w1, w2, w3, w4, w5, w6, temp;
 
     unsigned factor_limbs_div4;
     unsigned bih; //number of limbs for each part
@@ -1477,30 +1474,23 @@ void toom4(MPN *restrict result, MPN *restrict factor1, MPN *restrict factor2) {
     sum_in_first_arg(w6, temp);
     T4(("\nw6 ", w6));
 
-    toom4(&temp, &u3, &xpiuuno);
-    T4(("\ntemp ", temp));
-
-    sum_in_first_arg(temp, w0);
-    T4(("\ntemp ", temp));
-    MP_bitShiftLeft(&temp, 1, 0);
-
-    T4(("\ntemp ", temp));
 
     sum_in_first_arg(w4, w4);
+    sum_in_first_arg(w4, u3);
+    MP_bitShiftLeft(&w4, 1, false);
+    sum_in_first_arg(w4, u3);
+    sum_in_first_arg(w4, w0);
+    MP_bitShiftLeft(&w4, 1, false);
     sum_in_first_arg(w4, w1);
 
-    sum_in_first_arg(w4, temp);
     T4(("\nw4 ", w4));
 
-    toom4(&temp, &v3, &xpiuuno);
-    T4(("\ntemp ", temp));
-    sum_in_first_arg(temp, w6);
-    T4(("\ntemp ", temp));
-    MP_bitShiftLeft(&temp, 1, 0);
-    T4(("\ntemp ", temp));
-
     sum_in_first_arg(w5, w5);
-    sum_in_first_arg(w5, temp);
+    sum_in_first_arg(w5, v3);
+    MP_bitShiftLeft(&w5, 1, false);
+    sum_in_first_arg(w5, v3);
+    sum_in_first_arg(w5, w6);
+    MP_bitShiftLeft(&w5, 1, false);
     sum_in_first_arg(w5, w2);
     T4(("\nw5 ", w5));
 
